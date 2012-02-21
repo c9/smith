@@ -72,6 +72,7 @@ var encoded = new Buffer([0x93, 0x01, 0x02, 0x03]);
 // encoded -> <Buffer 93 01 02 03>
 var message = msgpack.decode(encoded);
 // message -> [1, 2, 3]
+```
 
 ## Message Encoding
 
