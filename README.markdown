@@ -32,7 +32,7 @@ var parse = protocol.deFramer(console.log);
 parse(new Buffer([0x00, 0x00, 0x00, 0x05, 0x48]));
 // -> undefined
 parse(new Buffer([0x48, 0x65, 0x6c, 0x6c, 0x6f]));
-// <Buffer 48 48 65 6c 6c>
+// <Buffer 48 48 65 6c 6c 6f>
 // -> undefined
 ```
 
