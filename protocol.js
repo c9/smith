@@ -160,7 +160,7 @@ function serializer(keyOffset, proxyCall) {
   // Place to hold keyed functions
   var functions = {};
 
-  // Generates a random unique 15 bit key
+  // Generates a random unique 16 bit key namespaced to the keyOffset
   // WARNING: will infinite loop if the keyspace gets full
   function makeKey() {
     var key = (Math.random() * 0x4000 << 1) + keyOffset;
@@ -286,7 +286,8 @@ function serializer(keyOffset, proxyCall) {
 exports.startClient = function (input, output, functions) {
   var remote = new Remote(input, output, 1);
   // Hook up remote-functions and tell the server we're ready.
-  remote.sendObject({init:functions});
+  remote.emitRemote("init", functions);
+  return remote;
 }
 
 exports.connectToClient = function (input, output, callback) {
@@ -386,6 +387,12 @@ Remote.prototype.sendObject = function (object) {
   }
   this.sendFrame(buffer);
 };
+
+Remote.prototype.emitRemote = function (name, value) {
+  var obj = {};
+  obj[name] = value;
+  this.sendObject(obj);
+}
 
 
 //////////////////////////////////////////////////////////////////////////////////
