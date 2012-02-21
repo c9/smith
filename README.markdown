@@ -148,8 +148,6 @@ The `Remote` constructor ties all the other components together into a single sm
 
 The keyOffset is passed directly to the embedded serializer and tells this instance if it's a client or server and it can route messages accordingly.
 
-Proxy functions
-
 ### Remote.prototype.wrap(String name)
 
 A private method used to bind callbacks to an instance and route errors.
