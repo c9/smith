@@ -170,7 +170,7 @@ A private callback for when a local proxy function is called.  This function sen
 
 A private helper method for serializing and sending messages to the other size.
 
-### Remote.prototype.emitRemove(name, value)
+### Remote.prototype.emitRemote(name, value)
 
 A public method for emitting a named event on the other side.
 
