@@ -174,7 +174,7 @@ function serializer(keyOffset, proxyCall) {
     }
     var λ = makeKey();
     functions[λ] = fn;
-    fn.λ = λ;
+    // fn.λ = λ;
     return λ;
   }
 
