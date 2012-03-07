@@ -1,59 +1,64 @@
-// A mini async test framework
-var assert = require('assert');
-var util = require('util');
-var expectations = {};
-function expect(message) { expectations[message] = new Error("Missing expectation: " + message); }
-function fulfill(message) { delete expectations[message]; }
-process.addListener('exit', function () {
-  Object.keys(expectations).forEach(function (message) {
-    throw expectations[message];
-  });
+require('./helpers');
+var Agent = require('remoteagent-protocol').Agent;
+
+var a = new Agent({
+  add: function (a, b, callback) {
+    callback(a + b);
+  }
+});
+var b = new Agent();
+var samples = [];
+
+var pair = require('../lib/fake-transports')("A", "B");
+a.attach(pair.A, function (AB) {
+  console.log("A is connected to B!");
+});
+b.attach(pair.B, function (BA) {
+  console.log("B is connected to A!");
+  var left = 300000;
+  for (var i = 0; i < 100; i++) {
+    test();
+  }
+
+  function test() {
+    BA.add(1, 2, function (result) {
+      assert.equal(result, 3);
+      if (left % 10000 === 0) samples.push(process.memoryUsage());
+      if (--left > 0) test();
+      else if (left === 0) done();
+    });
+  }
 });
 
-
-var Remote = require('../protocol').Remote;
-var EventEmitter = require('events').EventEmitter;
-
-// A fake socket for simulating network traffic
-function Socket(){}
-Socket.prototype = Object.create(EventEmitter.prototype, {constructor:{value:Socket}});
-
-// Takes in a buffer and simulates writing it to the other side
-Socket.prototype.write = function (data) {
-  assert(Buffer.isBuffer(data));
-  var other = this.other;
-  var copy = new Buffer(data.length);
-  data.copy(copy);
-  process.nextTick(function () {
-    other.emit('data', copy);
-  });
-};
-
-// Create a fake pair
-var s1 = new Socket();
-var s2 = new Socket();
-s1.other = s2;
-s2.other = s1;
-
-// Create a simulated network connection with paired proxy calls
-var r1 = new Remote(s1, s1, 0);
-var r2 = new Remote(s2, s2, 1);
-
-// Sample permanent function with one-use callback
-r1.register("add", function add(a, b, callback) {
-  callback(a + b);
-});
 
 expect("done");
-// test 1,000,000 times.
-var left = 1000000;
-for (var i = 0; i < 100; i++) {
-  test();
+function done() {
+  // Trim the first few samples to not include startup time
+  samples = samples.slice(4);
+  console.log(samples);
+  getSlope("rss", 0x100000);
+  fulfill("done");
 }
-function test() {
-  r2.callRemote("add", 1, 2, function callback(result) {  
-    assert.equal(result, 3);  
-    if (--left > 0) test();
-    else if (left === 0) fulfill("done");
+
+function getSlope(key, limit) {
+  var sum = 0;
+  var max = 0;
+  var min = Infinity;
+  samples.forEach(function (sample) {
+    var value = sample[key];
+    sum += value;
+    if (value > max) max = value;
+    if (value < min) min = value;
   });
+  var mean = sum / samples.length;
+  var deviation = 0;
+  samples.forEach(function (sample) {
+    var diff = mean - sample[key];
+    deviation += diff * diff;
+  });
+  deviation = Math.sqrt(deviation / (samples.length - 1));
+  console.log("%s: min %s, mean %s, max %s, standard deviation %s", key, min, mean, max, deviation);
+  if (deviation > limit) {
+    throw new Error("Deviation for " + key + " over " + limit + ", probably a memory leak");
+  }
 }

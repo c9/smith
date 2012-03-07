@@ -2,12 +2,12 @@
   "author": "Tim Caswell <tim@c9.io>",
   "name": "remoteagent-protocol",
   "description": "A binary capable rpc system built on top of msgpack",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "repository": {
     "type": "git",
     "url": "git://github.com/c9/remoteagent-protocol.git"
   },
-  "main": "protocol.js",
+  "main": "lib/Agent.js",
   "engines": {
     "node": "~0.6.0"
   },

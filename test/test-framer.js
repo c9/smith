@@ -1,6 +1,30 @@
-var frameMessages = require('../lib/framer').frameMessages;
-var deFramer = require('../lib/framer').deFramer;
-var Assert = require('assert');
+require('./helpers');
+var deFramer = require('remoteagent-protocol/lib/socket-transport').deFramer;
+
+// Given an array of message buffers, this returns a single buffer that contains
+// all the messages framed.
+function frameMessages(messages) {
+    var i, l = messages.length;
+
+    // Calculate total size of final buffer
+    var total = l * 4;
+    for (i = 0; i < l; i++) {
+        total += messages[i].length;
+    }
+
+    // Create and fill in final buffer
+    var buffer = new Buffer(total);
+    var offset = 0;
+    for (i = 0; i < l; i++) {
+        var message = messages[i];
+        var length = message.length;
+        buffer.writeUInt32BE(length, offset);
+        message.copy(buffer, offset + 4);
+        offset += length + 4;
+    }
+
+    return buffer;
+};
 
 // Test the de-framer by creating a sample message stream and simulating packet
 // sizes from one-byte-per-packet to all-messages-in-one-packet.
@@ -20,8 +44,10 @@ for (var step = 1; step < length; step++) {
   for (var offset = 0; offset < length; offset += step) {
     var end = offset + step
     if (end > length) { end = length; }
-    parser(message.slice(offset, end))
+    var chunk = message.slice(offset, end);
+    console.log(chunk);
+    parser(chunk);
   }
-  Assert.deepEqual(input, output);
+  assert.deepEqual(input, output);
 }
 
