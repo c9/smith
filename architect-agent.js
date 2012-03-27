@@ -1,4 +1,3 @@
-var EventEmitter = require('events').EventEmitter;
 
 exports.Agent = Agent;
 function Agent(methods) {
@@ -11,9 +10,9 @@ Agent.prototype.attach = function attach(transport, callback) {
 	var keys = Object.keys(this.methods);
 
 	// When the other side is ready, tell it our methods
-	remote.once('ready', function (callback) {
+  remote.ready = function (callback) {
 		callback(keys);
-	});
+	};
 
 	// Tell the other agent we're ready and ask for it's methods
 	remote.call("ready", [function (methodNames) {
@@ -29,14 +28,8 @@ Agent.prototype.attach = function attach(transport, callback) {
 
 // `agent` is the local agent. `transport` is a transport to the remote agent.
 function makeRemote(agent, transport) {
-	// `remote` emits named events when the remote agent sends us named requests.
-	var remote = new EventEmitter();
-	// Route event requests to the agent's methods.
-	var names = Object.keys(agent.methods);
-	names.forEach(function (name) {
-		remote.on(name, agent.methods[name]);
-	});
-
+	// `remote` inherits from the local methods to serve the functions
+	var remote = Object.create(agent.methods);
 	var callbacks = {};
 	var nextKey = 0;
 
@@ -55,7 +48,7 @@ function makeRemote(agent, transport) {
 		var target = message[0];
 		if (typeof target === "string") {
 			// Route named messages to named events
-			remote.emit.apply(remote, message);
+			remote[target].apply(remote, message.slice(1));
 		}
 		else {
 			// Route others to one-shot callbacks
