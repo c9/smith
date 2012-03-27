@@ -1,5 +1,5 @@
 require('./helpers');
-var Agent = require('remoteagent-protocol').Agent;
+var Agent = require('..').Agent;
 
 var a = new Agent({
   add: function (a, b, callback) {
@@ -9,7 +9,7 @@ var a = new Agent({
 var b = new Agent();
 var samples = [];
 
-var pair = require('../lib/fake-transports')("A", "B");
+var pair = require('architect-fake-transports')("A", "B");
 a.attach(pair.A, function (AB) {
   console.log("A is connected to B!");
 });

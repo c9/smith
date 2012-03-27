@@ -176,7 +176,7 @@ function getType(value) {
     if (Array.isArray(value)) {
         return "array";
     }
-    if (Buffer.isBuffer(value)) {
+    if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) {
         return "buffer";
     }
     return typeof value;
