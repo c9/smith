@@ -35,7 +35,9 @@ function makeRemote(agent, transport) {
 	var nextKey = 0;
 
 	// Handle incoming messages.
-	transport.on('message', function (message) {
+	if (transport.on) transport.on("message", onMessage);
+	else transport.onMessage = onMessage;
+	function onMessage(message) {
 		if (!(Array.isArray(message) && message.length)) throw new Error("Should be array");
 		message = liven(message, function (id) {
 			var key = getKey();
@@ -57,7 +59,7 @@ function makeRemote(agent, transport) {
 			if (!(typeof fn === "function")) throw new Error("Should be function");
 			fn.apply(null, message.slice(1));
 		}
-	});
+	};
 
 	function getKey() {
 		var key = (nextKey + 1) >> 0;
