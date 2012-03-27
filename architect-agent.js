@@ -11,6 +11,7 @@ Agent.prototype.attach = function attach(transport, callback) {
 
 	// When the other side is ready, tell it our methods
   remote.ready = function (callback) {
+		delete remote.ready;
 		callback(keys);
 	};
 
@@ -35,7 +36,7 @@ function makeRemote(agent, transport) {
 
 	// Handle incoming messages.
 	transport.on('message', function (message) {
-		assert(Array.isArray(message) && message.length);
+		if (!(Array.isArray(message) && message.length)) throw new Error("Should be array");
 		message = liven(message, function (id) {
 			var key = getKey();
 			var fn = function () {
@@ -53,7 +54,7 @@ function makeRemote(agent, transport) {
 		else {
 			// Route others to one-shot callbacks
 			var fn = callbacks[target];
-			assert(typeof fn === "function");
+			if (!(typeof fn === "function")) throw new Error("Should be function");
 			fn.apply(null, message.slice(1));
 		}
 	});
