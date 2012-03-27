@@ -1,5 +1,5 @@
 require('./helpers');
-var Agent = require('remoteagent-protocol').Agent;
+var Agent = require('..').Agent;
 
 var a = new Agent({
 	add: function (a, b, callback) {
@@ -13,7 +13,7 @@ expect("test1");
 function testFakeTransport() {
 	fulfill("test1");
 	console.log("Testing fake transport");
-	var pair = require('../lib/fake-transports')("A", "B", true);
+	var pair = require('architect-fake-transports')("A", "B", true);
 	expect("connect AB");
 	a.attach(pair.A, function (AB) {
 		fulfill("connect AB");
@@ -39,7 +39,7 @@ function testSocketTransport() {
 	console.log("Test 2 using real tcp server");
 	fulfill("test2");
 	var net = require('net');
-	var socketTransport = require('remoteagent-protocol/lib/socket-transport');
+	var socketTransport = require('architect-socket-transport');
 	expect("connect1");
 	var server = net.createServer(function (socket) {
 		fulfill("connect1");

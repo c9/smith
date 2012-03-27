@@ -1,17 +1,18 @@
 {
   "author": "Tim Caswell <tim@c9.io>",
-  "name": "remoteagent-protocol",
-  "description": "A binary capable rpc system built on top of msgpack",
-  "version": "0.1.0",
+  "name": "architect-agent",
+  "description": "This is the rpc agent for the architect plugin framework",
+  "version": "0.2.0",
   "repository": {
     "type": "git",
-    "url": "git://github.com/c9/remoteagent-protocol.git"
+    "url": "git://github.com/c9/architect-agent.git"
   },
-  "main": "lib/Agent.js",
+  "main": "architect-agent.js",
   "engines": {
     "node": "~0.6.0"
   },
-  "dependencies": {
-    "msgpack-js": "~0.1.0"
+  "devDependencies": {
+    "architect-socket-transport": "~0.2.0",
+    "architect-fake-transports": "~0.2.0"
   }
 }

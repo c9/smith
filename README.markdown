@@ -75,7 +75,7 @@ the boss property in the root.
 The main public interface is the Agent class.  There is typically one of these per network node (process) in a remoteagent mesh.  The agent holds the named functions that this node serves to the other nodes.
 
 ```js
-var Agent = require('remoteagent-prototcol').Agent;
+var Agent = require('architect-agent').Agent;
 
 var agent = new Agent({
 	add: function (a, b, callback) {
@@ -109,7 +109,7 @@ tcp port.  We are assuming the `agent` variable declared in the sample above.
 
 ```js
 var net = require('net');
-var socketTransport = require('remoteagent-protocol/lib/socket-transport');
+var socketTransport = require('architect-socket-transport');
 
 net.createServer(function (socket) {
 	agent.attach(socketTransport(socket), function (client) {
@@ -122,9 +122,9 @@ Then to connect to this, from the client connect to this server.
 
 ```js
 var net = require('net');
-var socketTransport = require('remoteagent-protocol/lib/socket-transport');
+var socketTransport = require('architect-socket-transport');
 
-var Agent = require('remoteagent-prototcol').Agent;
+var Agent = require('architect-agent').Agent;
 
 var agent = new Agent();
 

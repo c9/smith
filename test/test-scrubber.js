@@ -1,7 +1,7 @@
 require('./helpers');
-var freeze = require('remoteagent-protocol/lib/scrubber').freeze;
-var liven = require('remoteagent-protocol/lib/scrubber').liven;
-var getType = require('remoteagent-protocol/lib/helpers').getType;
+var freeze = require('..').freeze;
+var liven = require('..').liven;
+var getType = require('..').getType;
 
 function foo() {}
 var cycle = {a:true,b:false, d:[1,2,3]};
@@ -35,6 +35,7 @@ function onID(id) {
 pairs.forEach(function (pair) {
   var live = pair[0];
   var dead = pair[1];
+  console.log("testing", pair);
   var frozen = freeze(live, onFunction);
   if (!deepEqual(frozen, dead)) {
     console.error({a:frozen,e:dead})

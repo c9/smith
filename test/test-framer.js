@@ -1,5 +1,5 @@
 require('./helpers');
-var deFramer = require('remoteagent-protocol/lib/socket-transport').deFramer;
+var deFramer = require('architect-socket-transport').deFramer;
 
 // Given an array of message buffers, this returns a single buffer that contains
 // all the messages framed.
