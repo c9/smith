@@ -8,42 +8,46 @@ var cycle = {a:true,b:false, d:[1,2,3]};
 cycle.e = cycle.d;
 cycle.cycle = cycle;
 var pairs = [
+  [{$:1,$$:2,$$$:3,$$$$:4}, {$$:1,$$$:2,$$$$:3,$$$$$:4}],
+  [process.stdin, {$:{S:1,w:false}}],
+  [process.stdout, {$:{S:2,r:false,w:true}}],
   [true, true],
   [false, false],
   [null, null],
   [undefined, undefined],
   [42, 42],
-  [foo, { λ: 1 }],
-  [[1,2,3,foo],[1,2,3,{λ:2}]],
+  [foo, { $: 3 }],
+  [[1,2,3,foo],[1,2,3,{$:4}]],
   ["Hello", "Hello"],
   [new Buffer([0,1,2,3,4,5,6]), new Buffer([0,1,2,3,4,5,6])],
-  [{fn:foo}, {fn:{λ:3}}],
-  [cycle, {a:true,b:false,d:[1,2,3],e:{"*":["d"]},cycle:{"*":[]}}]
+  [{fn:foo}, {fn:{$:5}}],
+  [cycle, {a:true,b:false,d:[1,2,3],e:{$:["d"]},cycle:{$:[]}}]
 ];
 
-var functions = {};
+var specials = {};
 var nextKey = 0;
-function onFunction(fn) {
+function onSpecial(value) {
   var key = ++nextKey;
-  functions[key] = fn;
+  specials[key] = value;
   return key;
 }
-function onID(id) {
-  return functions[id];
+function onSpecialID(obj) {
+  if (obj.S) return specials[obj.S];
+  if (obj.F) return specials[obj.F];
 }
 
 pairs.forEach(function (pair) {
   var live = pair[0];
   var dead = pair[1];
   console.log("testing", pair);
-  var frozen = freeze(live, onFunction);
+  var frozen = freeze(live, onSpecial);
   if (!deepEqual(frozen, dead)) {
-    console.error({a:frozen,e:dead})
+    console.error({actual:frozen,expected:dead});
     throw new Error("freeze fail");
   }
-  var relive = liven(frozen, onID);
+  var relive = liven(frozen, onSpecialID);
   if (!deepEqual(relive, live)) {
-    console.error({a:relive,e:live})
+    console.error({actual:relive,expected:live});
     throw new Error("liven fail");
   }
 });
