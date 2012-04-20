@@ -29,11 +29,108 @@ Agent.prototype.attach = function attach(transport, callback) {
     }]);
 };
 
+var StreamProxy;
+function defineStreamProxy() {
+    var Stream = require('stream').Stream;
+    var EventEmitter = require('events').EventEmitter;
+    // Used to create local stream proxies of remote streams
+    StreamProxy = function StreamProxy(id, send) {
+        this.id = id;
+        this.send = send;
+        this.persistentCallbacks = {};
+    }
+    require('util').inherits(StreamProxy, Stream);
+
+    // Intercept EventEmitter APIs for remote events
+    var remoteEvents = { data: true, end: true, close: true, pipe: true };
+    StreamProxy.prototype.on = function (name, callback) {
+        // If it's a remote event and this is the first, register a remote data source
+        if (remoteEvents[name] && !this.listeners(name).length) {
+            var self = this;
+            function masterCallback(value) {
+                var args = [name];
+                args.push.apply(args, arguments);
+                self.emit.apply(self, args);
+            }
+            this.persistentCallbacks[name] = masterCallback;
+            masterCallback.persistent = true;
+            this.send([this.id, "on", name, masterCallback]);
+        }
+        return EventEmitter.prototype.on.apply(this, arguments);
+    }
+    StreamProxy.prototype.emit = function (name) {
+        if (remoteEvents[name]) {
+            var message = [this.id, "emit"];
+            message.push.apply(message, arguments);
+            this.send(message);
+        }
+        else {
+            return EventEmitter.prototype.emit.apply(this, arguments);
+        }
+    };
+
+    StreamProxy.prototype.removeListener = function (name, callback) {
+        var ret = EventEmitter.prototype.removeListener.apply(this, arguments);
+        console.log("R", name, this.listeners(name));
+        if (remoteEvents[name] && !this.listeners(name).length && this.persistentCallbacks[name]) {
+            // The last listener was removed, let's remove the remote one too.
+            var callback = this.persistentCallbacks[name];
+            this.send([this.id, "removeListener", name, callback]);
+            this.send([false, callback.persistent]);
+            delete this.persistentCallbacks[name];
+            delete callback.persistent;
+        }
+        return ret;
+    };
+
+    StreamProxy.prototype.pipe = Stream.prototype.pipe;
+
+    StreamProxy.prototype.write = function (chunk, encoding) {
+        if (!this.writable) throw new Error("Called write, but not writable");
+        var message = [this.id, "write", chunk];
+        if (arguments.length >= 2) message.push(encoding);
+        var ret = this.send(message, function () {
+            if (ret === false) stream.emit("drain");
+        });
+        return ret;
+    };
+    StreamProxy.prototype.end = function (chunk, encoding) {
+        if (!this.writable) throw new Error("Called end, but not writable");
+        var message = [this.id, "end"];
+        if (arguments.length >= 1) {
+            message.push(chunk);
+            if (arguments.length >= 2) message.push(encoding);
+        }
+        this.send(message);
+    };
+    StreamProxy.prototype.setEncoding = function (encoding) {
+        if (!this.readable) throw new Error("Called setEncoding, but not readable");
+        this.send([this.id, "setEncoding", encoding]);
+    };
+    StreamProxy.prototype.pause = function () {
+        if (!this.readable) throw new Error("Called pause, but not readable");
+        this.send([this.id, "pause"]);
+    };
+    StreamProxy.prototype.resume = function () {
+        if (!this.readable) throw new Error("Called resume, but not readable");
+        this.send([this.id, "resume"]);
+    };
+    StreamProxy.prototype.destroy = function () {
+        if (!(this.readable || this.writable)) throw new Error("Called destroy, but not readable or writable");
+        this.send([this.id, "destroy"]);
+    };
+    StreamProxy.prototype.destroySoon = function () {
+        if (!(this.readable || this.writable)) throw new Error("Called destroySoon, but not readable or writable");
+        this.send([this.id, "destroySoon"]);
+    };
+
+}
+
 // `agent` is the local agent. `transport` is a transport to the remote agent.
 function makeRemote(agent, transport) {
     // `remote` inherits from the local methods to serve the functions
     var remote = Object.create(agent.methods);
-    var callbacks = {};
+    var specials = {};
     var nextKey = 0;
 
     // Handle incoming messages.
@@ -42,37 +139,68 @@ function makeRemote(agent, transport) {
     function onMessage(message) {
         if (!(Array.isArray(message) && message.length)) throw new Error("Should be array");
         message = liven(message, function (special) {
+            var key = getKey();
             if (special.F) {
                 var id = special.F;
-                var key = getKey();
-                var fn = function () {
-                    delete callbacks[key];
-                    remote.call(id, Array.prototype.slice.call(arguments));
-                };
-                callbacks[key] = fn;
+                var fn;
+                if (special.p) {
+                    fn = function () {
+                        remote.call(id, Array.prototype.slice.call(arguments));
+                    }
+                }
+                else {
+                    var fn = function () {
+                        delete specials[key];
+                        remote.call(id, Array.prototype.slice.call(arguments));
+                    };
+                }
+                specials[key] = fn;
                 return fn;
             }
             if (special.S) {
-                throw new Error("Stream Not Implemented")
+                var id = special.S;
+                if (!StreamProxy) defineStreamProxy();
+                var stream = new StreamProxy(id, send);
+                if (special.hasOwnProperty("r")) stream.readable = special.r;
+                if (special.hasOwnProperty("w")) stream.writable = special.w;
+                specials[key] = stream;
+                return stream;
             }
             throw new Error("Invalid special type");
         });
         var target = message[0];
-        if (typeof target === "string") {
+        if (target === false) {
+            // false command mean to free specials (persistent callbacks usually)
+            for (var i = 1, l = message.length; i < l; i++) {
+                delete specials[message[i]];
+            }
+        }
+        else if (typeof target === "string") {
             // Route named messages to named events
             remote[target].apply(remote, message.slice(1));
         }
         else {
             // Route others to one-shot callbacks
-            var fn = callbacks[target];
-            if (!(typeof fn === "function")) throw new Error("Should be function");
-            fn.apply(null, message.slice(1));
+            if (!specials.hasOwnProperty(target)) {
+                throw new Error("Invalid special ID " + target);
+            }
+            var special = specials[target];
+            var type = getType(special);
+            if (type === "function") {
+                special.apply(null, message.slice(1));
+            }
+            else if (type === "stream") {
+                special[message[1]].apply(special, message.slice(2));
+            }
+            else {
+                throw new Error("Invalid special type " + type);
+            }
         }
     }
 
     function getKey() {
         var key = (nextKey + 1) >> 0;
-        while (callbacks.hasOwnProperty(key)) {
+        while (specials.hasOwnProperty(key)) {
             key = (key + 1) >> 0;
             if (key === nextKey) {
                 throw new Error("Ran out of keys!!");
@@ -83,19 +211,49 @@ function makeRemote(agent, transport) {
         return key;
     }
 
+    function onSpecial(special) {
+        var key;
+
+        var type = getType(special);
+        if (type === "function") {
+            // Don't re-wrap already persistent values
+            if (typeof special.persistent === "number") {
+                return special.persistent;
+            }
+            key = getKey();
+            if (special.persistent) {
+                specials[key] = special;
+                special.persistent = key;
+            }
+            else {
+                specials[key] = function () {
+                    delete specials[key];
+                    return special.apply(this, arguments);
+                };
+            }
+        }
+        else if (type === "stream") {
+            key = getKey();
+            specials[key] = special;
+            special.on("end", function () {
+                delete specials[key];
+            });
+        }
+        else {
+            throw new Error("Unknown Type " + type);
+        }
+        return key;
+    }
+
+    function send(args, callback) {
+        return transport.send(freeze(args, onSpecial), callback);
+    }
+
     // Enable outgoing messages
     // Warning, this mutates args, don't plan on reusing them.
     remote.call = function call(name, args) {
         args.unshift(name);
-        var message = freeze(args, function (fn) {
-            var key = getKey();
-            callbacks[key] = function () {
-                delete callbacks[key];
-                return fn.apply(this, arguments);
-            };
-            return key;
-        });
-        transport.send(message);
+        return send(args);
     };
 
     return remote;
@@ -135,9 +293,9 @@ function freeze(value, storeSpecial) {
         var o;
         // Look for functions
         if (type === "function") {
-            // TODO: support persistent functions using longhand {$:{F:id,p:true}}
+            var p = value.persistent;
             o = storeSpecial(value);
-            if (value.hasOwnProperty("persistent")) o = {F:o,p:value.persistent};
+            if (p) o = {F:o,p:p};
         }
 
         // Look for streams

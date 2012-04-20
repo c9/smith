@@ -7,9 +7,44 @@ var a = new Agent({
 	}
 });
 var b = new Agent();
-process.nextTick(testFakeTransport)
+process.nextTick(testStream);
 
-expect("test1");
+expect("testStream");
+function testStream() {
+	var Stream = require('stream').Stream;
+	var fs = require('fs');
+	fulfill("testStream");
+	var s = new Agent({
+		createWriteStream: function (path, callback) {
+			callback(null, fs.createWriteStream(path));
+		},
+		createReadStream: function (path, callback) {
+			callback(null, fs.createReadStream(path, {bufferSize: 100}));
+		}
+	});
+	var pair = require('architect-fake-transports')("S", "B", true);
+	expect("connect SB");
+	s.attach(pair.S, function (SB) {
+		fulfill("connect SB");
+		assert(SB);
+	});
+	expect("connect BS");
+	b.attach(pair.B, function (BS) {
+		fulfill("connect BS");
+		assert(BS);
+		BS.createWriteStream("test.js", function (err, outStream) {
+			assert(!err);
+			assert(outStream instanceof Stream);
+			BS.createReadStream(__filename, function (err, inStream) {
+				assert(!err);
+				assert(inStream instanceof Stream);
+				inStream.pipe(outStream);
+			});
+		});
+	});
+}
+
+// expect("test1");
 function testFakeTransport() {
 	fulfill("test1");
 	console.log("Testing fake transport");
@@ -33,8 +68,8 @@ function testFakeTransport() {
 	});
 }
 
-expect("alldone");
-expect("test2");
+// expect("alldone");
+// expect("test2");
 function testSocketTransport() {
 	console.log("Test 2 using real tcp server");
 	fulfill("test2");
