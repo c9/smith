@@ -1,5 +1,3 @@
-var Stream; // Get the Stream constructor if we're in node
-try { Stream = require('stream'); } catch (err) {}
 
 exports.Agent = Agent;
 function Agent(methods) {
@@ -18,11 +16,13 @@ Agent.prototype.attach = function attach(transport, callback) {
     };
 
     // Tell the other agent we're ready and ask for it's methods
-    remote.call("ready", [function (methodNames) {
+    remote.send(["ready", function (methodNames) {
         methodNames.forEach(function (name) {
             // Create a local proxy function for easy calling.
             remote[name] = function () {
-                remote.call(name, Array.prototype.slice.call(arguments));
+                var args = [name];
+                args.push.apply(args, arguments);
+                remote.send(args);
             };
         });
         callback(remote);
@@ -39,37 +39,17 @@ function makeRemote(agent, transport) {
     // Handle incoming messages.
     if (transport.on) transport.on("message", onMessage);
     else transport.onMessage = onMessage;
-    function onMessage(message) {
-        if (!(Array.isArray(message) && message.length)) throw new Error("Should be array");
-        message = liven(message, function (special) {
-            if (special.F) {
-                var id = special.F;
-                var key = getKey();
-                var fn = function () {
-                    delete callbacks[key];
-                    remote.call(id, Array.prototype.slice.call(arguments));
-                };
-                callbacks[key] = fn;
-                return fn;
-            }
-            if (special.S) {
-                throw new Error("Stream Not Implemented")
-            }
-            throw new Error("Invalid special type");
-        });
-        var target = message[0];
-        if (typeof target === "string") {
-            // Route named messages to named events
-            remote[target].apply(remote, message.slice(1));
-        }
-        else {
-            // Route others to one-shot callbacks
-            var fn = callbacks[target];
-            if (!(typeof fn === "function")) throw new Error("Should be function");
-            fn.apply(null, message.slice(1));
-        }
+
+    remote.send = send;
+
+    return remote;
+
+    function send(args) {
+        var message = freeze(args, storeFunction);
+        transport.send(message);
     }
 
+    // Generate a unique key within this channel.
     function getKey() {
         var key = (nextKey + 1) >> 0;
         while (callbacks.hasOwnProperty(key)) {
@@ -83,42 +63,63 @@ function makeRemote(agent, transport) {
         return key;
     }
 
-    // Enable outgoing messages
-    // Warning, this mutates args, don't plan on reusing them.
-    remote.call = function call(name, args) {
-        args.unshift(name);
-        var message = freeze(args, function (fn) {
-            var key = getKey();
-            callbacks[key] = function () {
-                delete callbacks[key];
-                return fn.apply(this, arguments);
-            };
-            return key;
-        });
-        transport.send(message);
-    };
+    // Used by liven to convert function id's into function wrappers.
+    function getFunction(id) {
+        var key = getKey();
+        // Push is actually fast http://jsperf.com/array-push-vs-concat-vs-unshift
+        var fn = function () {
+            delete callbacks[key];
+            var args = [id];
+            args.push.apply(args, arguments);
+            send(args);
+        };
+        callbacks[key] = fn;
+        return fn;
+    }
 
-    return remote;
+    // Used by freeze to convert callback functions into integer tokens
+    function storeFunction(fn) {
+        var key = getKey();
+        // Clean up the callback reference when it's called.
+        callbacks[key] = function () {
+            delete callbacks[key];
+            return fn.apply(this, arguments);
+        };
+        return key;
+    }
+
+    function onMessage(message) {
+        if (!(Array.isArray(message) && message.length)) throw new Error("Should be array");
+        message = liven(message, getFunction);
+        var target = message[0];
+        if (typeof target === "string") {
+            // Route named messages to named events
+            remote[target].apply(remote, message.slice(1));
+        }
+        else {
+            // Route others to one-shot callbacks
+            var fn = callbacks[target];
+            if (!(typeof fn === "function")) throw new Error("Should be function");
+            fn.apply(null, message.slice(1));
+        }
+    }
 }
 
 // Convert a js object into a serializable object when functions are
 // encountered, the storeFunction callback is called for each one.
-// storeSpecial takes in a function or stream and returns a unique id number.
-// Cycles are stored as object with a single $ key and an array of strigs as the path.
-// Functions and Streams are stored as objects with a single $ key and an object as value
-// that object has F key for function and S key for stream, the value is the id (number)
-// there can be other properties as lowercase characters (p in function means persistent, r and w in stream mean readable and writable)
-// if the $ property has a number value it's shortcut for function with no extra props.
-// properties starting with "$" have an extra $ prepended.
+// storeFunction takes in a function and returns a unique id number. Cycles
+// are stored as object with a single $ key and an array of strigs as the
+// path. Functions are stored as objects with a single $ key and id as value.
+// props. properties starting with "$" have an extra $ prepended.
 exports.freeze = freeze;
-function freeze(value, storeSpecial) {
+function freeze(value, storeFunction) {
     var seen = [];
     var paths = [];
     function find(value, path) {
         // find the type of the value
         var type = getType(value);
         // pass primitives through as-is
-        if (type !== "function" && type !== "object" && type !== "array" && type !== "stream") {
+        if (type !== "function" && type !== "object" && type !== "array") {
             return value;
         }
 
@@ -135,16 +136,7 @@ function freeze(value, storeSpecial) {
         var o;
         // Look for functions
         if (type === "function") {
-            // TODO: support persistent functions using longhand {$:{F:id,p:true}}
-            o = storeSpecial(value);
-            if (value.hasOwnProperty("persistent")) o = {F:o,p:value.persistent};
-        }
-
-        // Look for streams
-        if (type === "stream") {
-            o = {S:storeSpecial(value) };
-            if (value.hasOwnProperty('readable')) o.r = value.readable;
-            if (value.hasOwnProperty('writable')) o.w = value.writable;
+            o = storeFunction(value);
         }
 
         if (o) return {$:o};
@@ -160,10 +152,10 @@ function freeze(value, storeSpecial) {
 }
 
 // Converts flat objects into live objects.  Cycles are re-connected and
-// functions are inserted. The getSpecial callback is called whenever a
-// frozen function or stream is encountered. It expects an object {S:3} and returns the value
+// functions are inserted. The getFunction callback is called whenever a
+// frozen function is encountered. It expects an ID and returns the function
 exports.liven = liven;
-function liven(message, getSpecial) {
+function liven(message, getFunction) {
     function find(value, parent, key) {
         // find the type of the value
         var type = getType(value);
@@ -185,9 +177,8 @@ function liven(message, getSpecial) {
               parent[key] = get(obj.root, special);
               return parent[key];
             }
-            if (typeof special === "number") special = {F:special};
-            // Load streams and functions
-            parent[key] = getSpecial(special);
+            // Load functions
+            parent[key] = getFunction(special);
             return  parent[key];
         }
 
@@ -215,9 +206,6 @@ function getType(value) {
     }
     if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) {
         return "buffer";
-    }
-    if (typeof Stream !== "undefined" && (value instanceof Stream)) {
-        return "stream";
     }
     return typeof value;
 }
@@ -259,5 +247,3 @@ function map(value, callback, thisp, keyMap) {
     }
     return obj;
 }
-
-

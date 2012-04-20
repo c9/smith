@@ -23,7 +23,11 @@ b.attach(pair.B, function (BA) {
   function test() {
     BA.add(1, 2, function (result) {
       assert.equal(result, 3);
-      if (left % 10000 === 0) samples.push(process.memoryUsage());
+      if (left % 10000 === 0) {
+        var sample = process.memoryUsage();
+        console.log(sample);
+        samples.push(sample);
+      } 
       if (--left > 0) test();
       else if (left === 0) done();
     });
@@ -35,12 +39,11 @@ expect("done");
 function done() {
   // Trim the first few samples to not include startup time
   samples = samples.slice(4);
-  console.log(samples);
-  getSlope("rss", 0x100000);
+  getSlope("rss");
   fulfill("done");
 }
 
-function getSlope(key, limit) {
+function getSlope(key) {
   var sum = 0;
   var max = 0;
   var min = Infinity;
@@ -57,6 +60,7 @@ function getSlope(key, limit) {
     deviation += diff * diff;
   });
   deviation = Math.sqrt(deviation / (samples.length - 1));
+  var limit = mean / 10;
   console.log("%s: min %s, mean %s, max %s, standard deviation %s", key, min, mean, max, deviation);
   if (deviation > limit) {
     throw new Error("Deviation for " + key + " over " + limit + ", probably a memory leak");
