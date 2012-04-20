@@ -2,7 +2,7 @@
   "author": "Tim Caswell <tim@c9.io>",
   "name": "architect-agent",
   "description": "This is the rpc agent for the architect plugin framework",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "repository": {
     "type": "git",
     "url": "git://github.com/c9/architect-agent.git"
