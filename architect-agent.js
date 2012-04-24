@@ -44,9 +44,9 @@ function makeRemote(agent, transport) {
 
     return remote;
 
-    function send(args) {
+    function send(args, onDrain) {
         var message = freeze(args, storeFunction);
-        transport.send(message);
+        return transport.send(message, onDrain);
     }
 
     // Generate a unique key within this channel.
