@@ -247,7 +247,20 @@ Remote.prototype._onReady = function (names) {
     }
     var self = this;
     names.forEach(function (name) {
+        // Ignore already set functions so that existing function references
+        // stay valid.
+        if (self.api[name]) return;
         self.api[name] = function () {
+            // When disconnected we can't forward the call.
+            if (!self.transport) {
+                var callback = arguments[arguments.length - 1];
+                if (typeof callback === "function") {
+                    var err = new Error("ENOTCONNECTED: Remote is offline, try again later");
+                    err.code = "ENOTCONNECTED";
+                    callback(err);
+                }
+                return;
+            }
             var args = [name];
             args.push.apply(args, arguments);
             return self.send(args);
@@ -283,12 +296,6 @@ Remote.prototype.disconnect = function (err) {
         });
     }
     this.nextKey = undefined;
-
-    // Prune the API object
-    var api = this.api;
-    Object.keys(api).forEach(function (key) {
-        delete api[key];
-    });
 
     this.emit("disconnect", err);
 };
