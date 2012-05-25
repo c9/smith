@@ -1,5 +1,6 @@
 require('./helpers');
 var Agent = require('..').Agent;
+var Transport = require('..').Transport;
 
 var a = new Agent({
 	add: function (a, b, callback) {
@@ -13,19 +14,21 @@ expect("test1");
 function testFakeTransport() {
 	fulfill("test1");
 	console.log("Testing fake transport");
-	var pair = require('architect-fake-transports')("A", "B", true);
+	var pair = makePair("A", "B", true)
 	expect("connect AB");
-	a.attach(pair.A, function (AB) {
+	a.connect(pair.A, function (err, AB) {
+		if (err) throw err;
 		fulfill("connect AB");
 		console.log("A is connected to B!");
 	});
 	expect("connect BA");
-	b.attach(pair.B, function (BA) {
+	b.connect(pair.B, function (err, BA) {
+		if (err) throw err;
 		fulfill("connect BA");
 		console.log("B is connected to A!");
 		expect("result");
-		BA.add(1, 2, function (result) {
-			fulfill("result");	
+		BA.api.add(1, 2, function (result) {
+			fulfill("result");
 			console.log("Result", result);
 			assert.equal(result, 3);
 			testSocketTransport();
@@ -39,7 +42,6 @@ function testSocketTransport() {
 	console.log("Test 2 using real tcp server");
 	fulfill("test2");
 	var net = require('net');
-	var socketTransport = require('architect-socket-transport');
 	expect("connect1");
 	var server = net.createServer(function (socket) {
 		fulfill("connect1");
@@ -47,7 +49,8 @@ function testSocketTransport() {
 			console.log("B->A (%s):", chunk.length, chunk);
 		});
 		expect("connectAB");
-		a.attach(socketTransport(socket), function (AB) {
+		a.connect(new Transport(socket), function (err, AB) {
+			if (err) throw err;
 			fulfill("connectAB");
 			console.log("A is connected to B!");
 		});
@@ -59,16 +62,17 @@ function testSocketTransport() {
 		var socket = net.connect(port, function () {
 			fulfill("connect2");
 			expect("connectBA");
-			b.attach(socketTransport(socket), function (BA) {
+			b.connect(new Transport(socket), function (err, BA) {
+				if (err) throw err;
 				fulfill("connectBA");
 				console.log("B is connected to A!");
 				expect("result2");
-				BA.add(1, 2, function (result) {
+				BA.api.add(1, 2, function (result) {
 					fulfill("result2");
 					console.log("Result", result);
 					assert.equal(result, 3);
 					socket.end();
-					server.close();	
+					server.close();
 					fulfill("alldone");
 				});
 			});

@@ -1,5 +1,6 @@
 require('./helpers');
 var Agent = require('..').Agent;
+var Transport = require('..').Transport;
 
 var a = new Agent({
   add: function (a, b, callback) {
@@ -9,11 +10,13 @@ var a = new Agent({
 var b = new Agent();
 var samples = [];
 
-var pair = require('architect-fake-transports')("A", "B");
-a.attach(pair.A, function (AB) {
+var pair = makePair("A", "B");
+a.connect(pair.A, function (err, AB) {
+  if (err) throw err;
   console.log("A is connected to B!");
 });
-b.attach(pair.B, function (BA) {
+b.connect(pair.B, function (err, BA) {
+  if (err) throw err;
   console.log("B is connected to A!");
   var left = 300000;
   for (var i = 0; i < 100; i++) {
@@ -21,13 +24,13 @@ b.attach(pair.B, function (BA) {
   }
 
   function test() {
-    BA.add(1, 2, function (result) {
+    BA.api.add(1, 2, function (result) {
       assert.equal(result, 3);
       if (left % 10000 === 0) {
         var sample = process.memoryUsage();
         console.log(sample);
         samples.push(sample);
-      } 
+      }
       if (--left > 0) test();
       else if (left === 0) done();
     });

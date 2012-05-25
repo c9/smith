@@ -1,109 +1,361 @@
+var EventEmitter = require('events').EventEmitter;
+var inherits = require('util').inherits;
+var msgpack = require('msgpack-js');
 
 exports.Agent = Agent;
-function Agent(methods) {
-    this.methods = methods || {};
+exports.Transport = Transport;
+exports.Remote = Remote;
+exports.deFramer = deFramer;
+exports.liven = liven;
+exports.freeze = freeze;
+exports.getType = getType;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Agent is an API serving node in the architect-agent rpc mesh.  It contains
+// the functions that actually do the work.
+// @api - a persistent object that holds the API functions
+// @connect(transport, callback) - A method that connects to a remote agent via
+//                                 a Transport instance.
+function Agent(api) {
+  if (!this instanceof Agent) throw new Error("Forgot to use new with Agent constructor");
+  this.api = api || {};
 }
+inherits(Agent, EventEmitter);
 
-Agent.prototype.attach = function attach(transport, callback) {
-    var remote = makeRemote(this, transport);
-    // Listen for the other agent to tell us it's ready.
-    var keys = Object.keys(this.methods);
+// Time to wait for remote connections to finish
+Agent.prototype.connectionTimeout = 10000;
 
-    // When the other side is ready, tell it our methods
-    remote.ready = function (callback) {
-        delete remote.ready;
-        callback(keys);
-    };
+// Connect to a remote Agent via a transport.  Callback on connection, error,
+// or timeout.
+Agent.prototype.connect = function (transport, callback) {
+  var remote = new Remote(this);
+  remote.connect(transport);
 
-    // Tell the other agent we're ready and ask for it's methods
-    remote.send(["ready", function (methodNames) {
-        methodNames.forEach(function (name) {
-            // Create a local proxy function for easy calling.
-            remote[name] = function () {
-                var args = [name];
-                args.push.apply(args, arguments);
-                remote.send(args);
-            };
-        });
-        callback(remote);
-    }]);
+  // Start event listeners
+  remote.on("connect", onConnect);
+  remote.on("error", onError);
+  var timeout = setTimeout(onTimeout, this.connectionTimeout);
+
+  function onConnect() {
+    reset();
+    callback(null, remote);
+  }
+  function onError(err) {
+    reset();
+    callback(err);
+  }
+  function onTimeout() {
+    reset();
+    callback(new Error("Timeout while waiting for remote agent to connect."));
+  }
+  // Only one event should happen, so stop event listeners on first event.
+  function reset() {
+    remote.removeListener("connect", onConnect);
+    remote.removeListener("error", onError);
+    clearTimeout(timeout);
+  }
 };
 
-// `agent` is the local agent. `transport` is a transport to the remote agent.
-function makeRemote(agent, transport) {
-    // `remote` inherits from the local methods to serve the functions
-    var remote = Object.create(agent.methods);
-    var callbacks = {};
-    var nextKey = 0;
+////////////////////////////////////////////////////////////////////////////////
 
-    // Handle incoming messages.
-    if (transport.on) transport.on("message", onMessage);
-    else transport.onMessage = onMessage;
+// Transport is a connection between two Agents.  It lives on top of a duplex,
+// binary stream.
+// @input - the stream we listen for data on
+// @output - the stream we write to (can be the same object as input)
+// @send(message) - send a message to the other side
+// "message" - event emitted when we get a message from the other side.
+// "error" - event emitted for stream error or disconnect
+// "drain" - drain event from output stream
+function Transport(input, output) {
+    var self = this;
+    if (arguments.length === 1) output = input;
+    this.input = input;
+    this.output = output;
 
-    remote.send = send;
+    if (!input.readable) throw new Error("Input is not readable");
+    if (!output.writable) throw new Error("Output is not writable");
 
-    return remote;
-
-    function send(args, onDrain) {
-        var message = freeze(args, storeFunction);
-        return transport.send(message, onDrain);
+    // Attach event listeners
+    input.on("data", onData);
+    input.on("end", onDisconnect);
+    input.on("timeout", onDisconnect);
+    input.on("close", onDisconnect);
+    input.on("error", onError);
+    output.on("drain", onDrain);
+    if (output !== input) {
+        output.on("end", onDisconnect);
+        output.on("timeout", onDisconnect);
+        output.on("close", onDisconnect);
+        output.on("error", onError);
     }
 
-    // Generate a unique key within this channel.
-    function getKey() {
-        var key = (nextKey + 1) >> 0;
-        while (callbacks.hasOwnProperty(key)) {
-            key = (key + 1) >> 0;
-            if (key === nextKey) {
-                throw new Error("Ran out of keys!!");
-            }
+    var parse = deFramer(function (frame) {
+        var message;
+        try {
+            message = msgpack.decode(frame);
+        } catch (err) {
+            return self.emit("error", err);
         }
-        nextKey = key;
+        self.emit("message", message);
+    });
 
-        return key;
-    }
-
-    // Used by liven to convert function id's into function wrappers.
-    function getFunction(id) {
-        var key = getKey();
-        // Push is actually fast http://jsperf.com/array-push-vs-concat-vs-unshift
-        var fn = function () {
-            delete callbacks[key];
-            var args = [id];
-            args.push.apply(args, arguments);
-            send(args);
-        };
-        callbacks[key] = fn;
-        return fn;
-    }
-
-    // Used by freeze to convert callback functions into integer tokens
-    function storeFunction(fn) {
-        var key = getKey();
-        // Clean up the callback reference when it's called.
-        callbacks[key] = function () {
-            delete callbacks[key];
-            return fn.apply(this, arguments);
-        };
-        return key;
-    }
-
-    function onMessage(message) {
-        if (!(Array.isArray(message) && message.length)) throw new Error("Should be array");
-        message = liven(message, getFunction);
-        var target = message[0];
-        if (typeof target === "string") {
-            // Route named messages to named events
-            remote[target].apply(remote, message.slice(1));
+    // Route data chunks to the parser, but check for errors
+    function onData(chunk) {
+        try {
+            parse(chunk);
+        } catch (err) {
+            self.emit("error", err);
         }
-        else {
-            // Route others to one-shot callbacks
-            var fn = callbacks[target];
-            if (!(typeof fn === "function")) throw new Error("Should be function");
-            fn.apply(null, message.slice(1));
+    }
+
+    // Forward drain events from the writable stream
+    function onDrain() {
+        self.emit("drain");
+    }
+    // Forward all error events to the transport
+    function onError(err) {
+        self.emit("error", err);
+    }
+    function onDisconnect() {
+        // Remove all the listeners we added and destroy the streams
+        input.removeListener("data", onData);
+        input.removeListener("end", onDisconnect);
+        input.removeListener("timeout", onDisconnect);
+        input.removeListener("close", onDisconnect);
+        output.removeListener("drain", onDrain);
+        input.destroy();
+        if (input !== output) {
+            output.removeListener("end", onDisconnect);
+            output.removeListener("timeout", onDisconnect);
+            output.removeListener("close", onDisconnect);
+            output.destroy();
         }
+        // Emit the disconnect as an error
+        var err = new Error("EDISCONNECT: Transport disconnected");
+        err.code = "EDISCONNECT";
+        self.emit("error", err);
     }
 }
+inherits(Transport, EventEmitter);
+
+Transport.prototype.send = function (message) {
+    // Serialize the messsage.
+    var frame = msgpack.encode(message);
+
+    // Send a 4 byte length header before the frame.
+    var header = new Buffer(4);
+    header.writeUInt32BE(frame.length, 0);
+    this.output.write(header);
+
+    // Send the serialized message.
+    return this.output.write(frame);
+};
+
+// A simple state machine that consumes raw bytes and emits message events.
+// Returns a parser function that consumes buffers.  It emits message buffers
+// via onMessage callback passed in.
+function deFramer(onFrame) {
+    var buffer;
+    var state = 0;
+    var length = 0;
+    var offset;
+    return function parse(chunk) {
+        for (var i = 0, l = chunk.length; i < l; i++) {
+            switch (state) {
+            case 0: length |= chunk[i] << 24; state = 1; ; break;
+            case 1: length |= chunk[i] << 16; state = 2; break;
+            case 2: length |= chunk[i] << 8; state = 3; break;
+            case 3: length |= chunk[i]; state = 4;
+                buffer = new Buffer(length);
+                offset = 0;
+                break;
+            case 4:
+                var len = l - i;
+                var emit = false;
+                if (len + offset >= length) {
+                    emit = true;
+                    len = length - offset;
+                }
+                // TODO: optimize for case where a copy isn't needed can a slice can
+                // be used instead?
+                chunk.copy(buffer, offset, i, i + len);
+                offset += len;
+                i += len - 1;
+                if (emit) {
+                    onFrame(buffer);
+                    state = 0;
+                    length = 0;
+                    buffer = undefined;
+                    offset = undefined;
+                }
+                break;
+            }
+        }
+    };
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Remote represents a local proxy of a remote Agent instance.  It can contain
+// a single active Transport connection when it's live.
+// @connect(transport) - Connect to a new remote Agent via transport
+// @disconnect() - Disconnect from the remote agent
+// "connect" - an event emitted when the connection is established
+// "disconnect" - an event emitted when the connection goes down
+// "drain" drain event from the output stream
+function Remote(agent) {
+    if (!this instanceof Remote) throw new Error("Forgot to use new with Remote constructor");
+
+    this.agent = agent;
+
+    // Bind event handlers and callbacks
+    this.disconnect = this.disconnect.bind(this);
+    this._onMessage = this._onMessage.bind(this);
+    this._onDrain = this._onDrain.bind(this);
+    this._onReady = this._onReady.bind(this);
+    this._getFunction = this._getFunction.bind(this);
+    this._storeFunction = this._storeFunction.bind(this);
+
+    this.api = {}; // Persist the API object between connections
+    this.transport = undefined;
+    this.callbacks = undefined;
+    this.nextKey = undefined;
+}
+inherits(Remote, EventEmitter);
+
+Remote.prototype.connect = function (transport) {
+    this.transport = transport;
+    this.callbacks = {};
+    this.nextKey = 1;
+    transport.on("error", this.disconnect);
+    transport.on("message", this._onMessage);
+    transport.on("drain", this._onDrain);
+
+    // Handshake with the other end
+    this.send(["ready", this._onReady]);
+};
+
+Remote.prototype.send = function (message) {
+    message = freeze(message, this._storeFunction);
+    return this.transport.send(message);
+}
+
+Remote.prototype._onReady = function (names) {
+    if (!Array.isArray(names)) {
+        this.emit("error", names);
+    }
+    var self = this;
+    names.forEach(function (name) {
+        self.api[name] = function () {
+            var args = [name];
+            args.push.apply(args, arguments);
+            return self.send(args);
+        };
+    });
+    this.emit("connect");
+};
+
+// Disconnect resets the state of the remote, flushes callbacks and emits a
+// "disconnect" event with optional error object.
+Remote.prototype.disconnect = function (err) {
+    if (!this.transport) {
+        return this.emit("error", err || new Error("Not connected"));
+    }
+
+    // Disconnect from transport
+    this.transport.removeListener("error", this.disconnect);
+    this.transport.removeListener("message", this._onMessage);
+    this.transport.removeListener("drain", this._onDrain);
+    this.transport = undefined;
+
+    // Flush any callbacks
+    if (this.callbacks) {
+        var cerr = err;
+        if (!cerr) {
+            cerr = new Error("EDISCONNECT: Remote disconnected");
+            cerr.code = "EDISCONNECT";
+        }
+        var callbacks = this.callbacks;
+        this.callbacks = undefined;
+        forEach(callbacks, function (callback) {
+            callback(cerr);
+        });
+    }
+    this.nextKey = undefined;
+
+    // Prune the API object
+    var api = this.api;
+    Object.keys(api).forEach(function (key) {
+        delete api[key];
+    });
+
+    this.emit("disconnect", err);
+};
+
+// Forward drain events
+Remote.prototype._onDrain = function () {
+    this.emit("drain");
+};
+
+// Route incoming messages to the right functions
+Remote.prototype._onMessage = function (message) {
+    // console.log(process.pid, message);
+    if (!(Array.isArray(message) && message.length)) {
+        return this.emit("error", new Error("Message should be an array"));
+    }
+    message = liven(message, this._getFunction);
+    var id = message[0];
+    var fn;
+    if (id === "ready") {
+        var keys = Object.keys(this.agent.api);
+        fn = function (callback) {
+            callback(keys);
+        };
+    }
+    else {
+        fn = typeof id === "string" ? this.agent.api[id] : this.callbacks[id];
+    }
+    if (!(typeof fn === "function")) {
+        return this.emit("error",  new Error("Should be function"));
+    }
+    fn.apply(null, message.slice(1));
+};
+
+// Create a proxy function that calls fn key on the remote side.
+// This is for when a remote passes a callback to a local function.
+Remote.prototype._getFunction = function (key) {
+    var transport = this.transport;
+    return function () {
+        // Call a remote function using [key, args...]
+        var args = [key];
+        // Push is actually fast http://jsperf.com/array-push-vs-concat-vs-unshift
+        args.push.apply(args, arguments);
+        return transport.send(args);
+    };
+};
+
+// This is for when we call a remote function and pass in a callback
+Remote.prototype._storeFunction = function (fn) {
+    var key = this.nextKey;
+    while (this.callbacks.hasOwnProperty(key)) {
+        key = (key + 1) >> 0;
+        if (key === this.nextKey) {
+            throw new Error("Ran out of keys!!");
+        }
+    }
+    this.nextKey = (key + 1) >> 0;;
+
+    var callbacks = this.callbacks;
+    var self = this;
+    // Wrap is a self cleaning function and store in the index
+    callbacks[key] = function () {
+        delete callbacks[key];
+        self.nextKey = key;
+        return fn.apply(this, arguments);
+    };
+    return key;
+};
 
 // Convert a js object into a serializable object when functions are
 // encountered, the storeFunction callback is called for each one.
@@ -111,7 +363,6 @@ function makeRemote(agent, transport) {
 // are stored as object with a single $ key and an array of strigs as the
 // path. Functions are stored as objects with a single $ key and id as value.
 // props. properties starting with "$" have an extra $ prepended.
-exports.freeze = freeze;
 function freeze(value, storeFunction) {
     var seen = [];
     var paths = [];
@@ -154,7 +405,6 @@ function freeze(value, storeFunction) {
 // Converts flat objects into live objects.  Cycles are re-connected and
 // functions are inserted. The getFunction callback is called whenever a
 // frozen function is encountered. It expects an ID and returns the function
-exports.liven = liven;
 function liven(message, getFunction) {
     function find(value, parent, key) {
         // find the type of the value
@@ -195,8 +445,9 @@ function liven(message, getFunction) {
     return obj.root;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 // Typeof is broken in javascript, add support for null and buffer types
-exports.getType = getType;
 function getType(value) {
     if (value === null) {
         return "null";
@@ -211,7 +462,6 @@ function getType(value) {
 }
 
 // Traverse an object to get a value at a path
-exports.get = get;
 function get(root, path) {
     var target = root;
     for (var i = 0, l = path.length; i < l; i++) {
@@ -221,7 +471,6 @@ function get(root, path) {
 }
 
 // forEach that works on both arrays and objects
-exports.forEach = forEach;
 function forEach(value, callback, thisp) {
     if (typeof value.forEach === "function") {
         return value.forEach.call(value, callback, thisp);
@@ -234,7 +483,6 @@ function forEach(value, callback, thisp) {
 }
 
 // map that works on both arrays and objects
-exports.map = map;
 function map(value, callback, thisp, keyMap) {
     if (typeof value.map === "function") {
         return value.map.call(value, callback, thisp);

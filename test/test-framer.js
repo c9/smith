@@ -1,5 +1,5 @@
 require('./helpers');
-var deFramer = require('architect-socket-transport').deFramer;
+var deFramer = require('..').deFramer;
 
 // Given an array of message buffers, this returns a single buffer that contains
 // all the messages framed.
