@@ -1,13 +1,16 @@
 {
-    "author": "Tim Caswell <tim@c9.io>",
-    "name": "architect-agent",
-    "description": "This is the rpc system for the architect plugin framework and the vfs system",
-    "version": "0.3.0",
+    "author": "Ajax.org B.V. <info@ajax.org>",
+    "contributors": [
+        { "name": "Tim Caswell", "email": "tim@c9.io>" }
+    ],
+    "name": "smith",
+    "description": "Smith is an RPC agent system for Node.JS used in architect and vfs.",
+    "version": "0.1.0",
     "repository": {
         "type": "git",
-        "url": "git://github.com/c9/architect-agent.git"
+        "url": "git://github.com/c9/smith.git"
     },
-    "main": "architect-agent.js",
+    "main": "smith.js",
     "engines": {
         "node": "~0.6.0"
     },

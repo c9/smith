@@ -35,7 +35,9 @@ Agent.prototype.connect = function (transport, callback) {
   // Start event listeners
   remote.on("connect", onConnect);
   remote.on("error", onError);
-  var timeout = setTimeout(onTimeout, this.connectionTimeout);
+  if (this.connectionTimeout) {
+      var timeout = setTimeout(onTimeout, this.connectionTimeout);
+  }
 
   function onConnect() {
     reset();
@@ -47,7 +49,9 @@ Agent.prototype.connect = function (transport, callback) {
   }
   function onTimeout() {
     reset();
-    callback(new Error("Timeout while waiting for remote agent to connect."));
+    var err = new Error("ETIMEDOUT: Timeout while waiting for remote agent to connect.");
+    err.code = "ETIMEDOUT";
+    callback(err);
   }
   // Only one event should happen, so stop event listeners on first event.
   function reset() {
@@ -266,7 +270,7 @@ Remote.prototype._onReady = function (names) {
             return self.send(args);
         };
     });
-    this.emit("connect");
+    this.emit("connect", this);
 };
 
 // Disconnect resets the state of the remote, flushes callbacks and emits a
