@@ -2,18 +2,19 @@ Smith is an RPC agent system for Node.JS used in architect and vfs.
 
 ## Usage
 
-Smith can be used in any situation where you have a duplex node stream.  This can be over tcp, stdio, a pipe, or anything that sends bytes back and forth.
+Smith can be used in any situation where you have a duplex node stream.  This
+can be over tcp, stdio, a pipe, or anything that sends bytes back and forth.
 
 ### TCP client-server example
 
-In this example, I have a TCP server that serves an add function to any agent clients who want to consume the service.
+In this example, I have a TCP server that serves an add function to any agent
+clients who want to consume the service.
 
 For the server, we create a small agent and serve it on a listening tcp port.
 
 ```js
 var net = require('net');
 var Agent = require('smith').Agent;
-var Transport = require('smith').Transport;
 
 // Create the agent that serves the `add` function.
 var agent = new Agent({
@@ -24,11 +25,12 @@ var agent = new Agent({
 
 // Start a TCP server
 net.createServer(function (socket) {
-  // Create a transport that wraps the duplex tcp socket
-  var transport = new Transport(socket);
   // Connect to the remote agent
-  agent.connect(transport, function (err, remote) {
-    if (err) throw err;
+  agent.connect(socket, function (err, api, remote) {
+    if (err) {
+      console.error(err.stach);
+      return;
+    }
     console.log("A new client connected");
     remote.on("disconnect", function (err) {
       console.error("The client disconnected")
@@ -39,39 +41,26 @@ net.createServer(function (socket) {
 });
 ```
 
-Then to consume this TCP service, we write a client agent.
+Then to consume this TCP service, we can create a remote and connect it to the
+tcp server.
 
 ```js
 var net = require('net');
-var Agent = require('smith').Agent;
-var Transport = require('smith').Transport;
+var Remote = require('smith').Remote;
 
-// Create a dumb agent
-var agent = new Agent();
+// Create our client
+var remote = new Remote()
 
-// Connect to the TCP server
 var socket = net.connect(1337, function () {
-  // Wrap the socket in a transport.
-  var transport = new Transport(socket);
-  agent.connect(transport, function (err, remote) {
-    if (err) throw err;
-
-    // Call the `add` API
-    remote.api.add(1, 3, function (err, result) {
+  remote.connect(socket, function (err, api) {
+    api.add(4, 5, function (err, result) {
       if (err) throw err;
-      console.log("1 + 3 = " + result);
-    });
-
-    // Listen for disconnect and possibly reconnect.
-    remote.on("disconnect", function (err) {
-      var socket = net.connect(1337, function () {
-        remote.connect(new Transport(socket))
-
-      // We could create a new connection and reconnect with `remote.connect(transport)`
+      console.log("4 + 5 = %s", result);
+      remote.disconnect();
     });
   });
-
 });
+```
 
 ## Class: Agent
 
@@ -89,8 +78,7 @@ The functions this agent serves to other agents.
 ### agent.connect(transport, callback)
 
 Convenience wrapper to connect the local Agent instance to a remote Agent
-instance. The `transport` argument is a Transport instance.  The callback will
-be called with `(err, remote, api)` where `remote` is a Remote instance.
+instance. See `remote.connect` for full docs.
 
 ## Class: Transport
 
@@ -126,7 +114,9 @@ Create a new remote that will be paired with the local `agent`.
 
 ### remote.api
 
-A object containing proxy functions for the api functions in the remote agent.  Calling these functions when the remote is offline will result in the last argument being called with a ENOTCONNECTED error (assuming it's a function).
+A object containing proxy functions for the api functions in the remote agent.
+Calling these functions when the remote is offline will result in the last
+argument being called with a ENOTCONNECTED error (assuming it's a function).
 
 ### remote.connectionTimeout
 
@@ -136,9 +126,10 @@ instance or the prototype.  Set to zero to disable.
 
 ### Event: 'connect'
 
-`function (remote) { }`
+`function (api) { }`
 
-When the rpc handshake is complete, the remote will emit a connect event containing itself.
+When the rpc handshake is complete, the remote will emit a connect event
+containing itself.
 
 ### Event: 'disconnect'
 
@@ -149,5 +140,10 @@ Emitted when the transport dies and the remote becomes offline
 ### remote.connect(transport, [callback]))
 
 Start the connection to a new remote using `transport`.  Emits `connect` when
-ready or `error` on failure.  Optionally use the callback to get `(err,
-remote, api)` results.
+ready or `error` on failure.  Optionally use the callback to get `(err, api,
+remote)` results.
+
+The `transport` argument is either a Transport instance or a duplex Stream.
+The callback will be called with `(err, remote, api)` where `remote` is the
+Remote instance.
+
