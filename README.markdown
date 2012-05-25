@@ -27,15 +27,13 @@ var agent = new Agent({
 net.createServer(function (socket) {
   // Connect to the remote agent
   agent.connect(socket, function (err, api, remote) {
-    if (err) {
-      console.error(err.stach);
-      return;
-    }
+    if (err) return console.error(err.stack);
     console.log("A new client connected");
     remote.on("disconnect", function (err) {
       console.error("The client disconnected")
     });
   });
+
 }).listen(1337, function () {
   console.log("Agent server listening on port 1337");
 });
@@ -61,6 +59,9 @@ var socket = net.connect(1337, function () {
   });
 });
 ```
+
+For an example of how to reconnect if the connection goes down, see
+https://github.com/c9/smith/blob/master/samples/tcp-client-autoreconnect.js
 
 ## Class: Agent
 
