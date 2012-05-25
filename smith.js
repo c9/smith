@@ -23,42 +23,11 @@ function Agent(api) {
 }
 inherits(Agent, EventEmitter);
 
-// Time to wait for remote connections to finish
-Agent.prototype.connectionTimeout = 10000;
-
 // Connect to a remote Agent via a transport.  Callback on connection, error,
 // or timeout.
 Agent.prototype.connect = function (transport, callback) {
   var remote = new Remote(this);
-  remote.connect(transport);
-
-  // Start event listeners
-  remote.on("connect", onConnect);
-  remote.on("error", onError);
-  if (this.connectionTimeout) {
-      var timeout = setTimeout(onTimeout, this.connectionTimeout);
-  }
-
-  function onConnect() {
-    reset();
-    callback(null, remote);
-  }
-  function onError(err) {
-    reset();
-    callback(err);
-  }
-  function onTimeout() {
-    reset();
-    var err = new Error("ETIMEDOUT: Timeout while waiting for remote agent to connect.");
-    err.code = "ETIMEDOUT";
-    callback(err);
-  }
-  // Only one event should happen, so stop event listeners on first event.
-  function reset() {
-    remote.removeListener("connect", onConnect);
-    remote.removeListener("error", onError);
-    clearTimeout(timeout);
-  }
+  remote.connect(transport, callback);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -211,7 +180,7 @@ function deFramer(onFrame) {
 function Remote(agent) {
     if (!this instanceof Remote) throw new Error("Forgot to use new with Remote constructor");
 
-    this.agent = agent;
+    this.agent = agent || new Agent();
 
     // Bind event handlers and callbacks
     this.disconnect = this.disconnect.bind(this);
@@ -228,7 +197,10 @@ function Remote(agent) {
 }
 inherits(Remote, EventEmitter);
 
-Remote.prototype.connect = function (transport) {
+// Time to wait for remote connections to finish
+Remote.prototype.connectionTimeout = 10000;
+
+Remote.prototype.connect = function (transport, callback) {
     this.transport = transport;
     this.callbacks = {};
     this.nextKey = 1;
@@ -238,6 +210,35 @@ Remote.prototype.connect = function (transport) {
 
     // Handshake with the other end
     this.send(["ready", this._onReady]);
+
+    // Start timeout and route events to callback
+    this.on("connect", onConnect);
+    this.on("error", onError);
+    if (this.connectionTimeout) {
+        var timeout = setTimeout(onTimeout, this.connectionTimeout);
+    }
+
+    var self = this;
+    function onConnect(api) {
+        reset();
+        if (callback) callback(null, self, api);
+    }
+    function onError(err) {
+        reset();
+        if (callback) callback(err);
+        else self.emit("error", err);
+    }
+    function onTimeout() {
+        var err = new Error("ETIMEDOUT: Timeout while waiting for remote agent to connect.");
+        err.code = "ETIMEDOUT";
+        self.emit("error", err);
+    }
+    // Only one event should happen, so stop event listeners on first event.
+    function reset() {
+        self.removeListener("connect", onConnect);
+        self.removeListener("error", onError);
+        clearTimeout(timeout);
+    }
 };
 
 Remote.prototype.send = function (message) {
@@ -270,7 +271,7 @@ Remote.prototype._onReady = function (names) {
             return self.send(args);
         };
     });
-    this.emit("connect", this);
+    this.emit("connect", this.api);
 };
 
 // Disconnect resets the state of the remote, flushes callbacks and emits a
