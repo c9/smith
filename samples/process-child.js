@@ -4,7 +4,6 @@ var Transport = require('smith').Transport;
 // Redirect logs to stderr since stdout is used for data
 console.log = console.error;
 
-console.log("CHILD STARTED")
 // Start listening on stdin for smith rpc data.
 process.stdin.resume();
 
