@@ -1,5 +1,4 @@
 // A very simple API
-exports.ping = ping;
-function ping(callback) {
+exports.ping = function (callback) {
     callback(null, process.pid + " pong");
 }

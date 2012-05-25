@@ -63,6 +63,77 @@ var socket = net.connect(1337, function () {
 For an example of how to reconnect if the connection goes down, see
 https://github.com/c9/smith/blob/master/samples/tcp-client-autoreconnect.js
 
+### STDIO Parent-Child Example
+
+Here we create a node process that spawns a child process, and the two talk to eachother calling functions both directions.
+
+Both share a simple API library.
+
+```js
+exports.ping = function (callback) {
+    callback(null, process.pid + " pong");
+}
+```
+
+The parent creates an Agent,spawns the child, and connects.
+
+```js
+var spawn = require('child_process').spawn;
+var Agent = require('smith').Agent;
+var Transport = require('smith').Transport;
+
+// Create an agent instance using the shared API
+var agent = new Agent(require('./process-shared-api'));
+
+// Spawn the child process that runs the other half.
+var child = spawn(process.execPath, [__dirname + "/process-child.js"]);
+// Forward the child's console output
+child.stderr.pipe(process.stderr);
+
+var transport = new Transport(child.stdout, child.stdin);
+agent.connect(transport, function (err, api) {
+  if (err) throw err;
+  // Call the child's API in a loop
+  function loop() {
+    api.ping(function (err, message) {
+      if (err) throw err;
+      console.log("Child says %s", message);
+    })
+    setTimeout(loop, Math.random() * 1000);
+  }
+  loop();
+});
+```
+
+The child resumes stdin, creates an Agent, and connects.
+
+```js
+var Agent = require('smith').Agent;
+var Transport = require('smith').Transport;
+
+// Redirect logs to stderr since stdout is used for data
+console.log = console.error;
+
+console.log("CHILD STARTED")
+// Start listening on stdin for smith rpc data.
+process.stdin.resume();
+
+var agent = new Agent(require('./process-shared-api'));
+var transport = new Transport(process.stdin, process.stdout);
+agent.connect(transport, function (err, api) {
+  if (err) throw err;
+  // Call the parent's API in a loop
+  function loop() {
+    api.ping(function (err, message) {
+      if (err) throw err;
+      console.log("Got %s from parent", message);
+    })
+    setTimeout(loop, Math.random() * 1000);
+  }
+  loop();
+});
+```
+
 ## Class: Agent
 
 Agent is the main class used in smith.  It represents an agent in your mesh
