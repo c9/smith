@@ -39,6 +39,7 @@ exports.getType = getType;
 // @output - the stream we write to (can be the same object as input)
 // @send(message) - send a message to the other side
 // "message" - event emitted when we get a message from the other side.
+// "disconnect" - the transport was disconnected
 // "error" - event emitted for stream error or disconnect
 // "drain" - drain event from output stream
 function Transport(input, output) {
@@ -111,7 +112,6 @@ function Transport(input, output) {
 }
 inherits(Transport, EventEmitter);
 
-
 Transport.prototype.send = function (message) {
     // Serialize the messsage.
     var frame = msgpack.encode(message);
@@ -125,7 +125,7 @@ Transport.prototype.send = function (message) {
     return this.output.write(frame);
 };
 
-// A simple state machine that consumes raw bytes and emits message events.
+// A simple state machine that consumes raw bytes and emits frame events.
 // Returns a parser function that consumes buffers.  It emits message buffers
 // via onMessage callback passed in.
 function deFramer(onFrame) {

@@ -173,6 +173,10 @@ containing the remoteApi.
 
 Emitted when the transport dies and the remote becomes offline
 
+### Event: `drain`
+
+When the writable stream in the transport emits drain, it's forwarded here
+
 ### agent.connect(transport, [callback]))
 
 Start the connection to a new remote agent using `transport`.  Emits `connect` when
@@ -181,6 +185,15 @@ agent)` results.
 
 The `transport` argument is either a Transport instance or a duplex Stream.
 The callback will be called with `(err, remoteApi)`.
+
+### agent.disconnect(err)
+
+Tell the agent to disconnect from the transport with optional error reason `err`.
+
+### agent.send(message)
+
+Encode a message and send it on the transport.  Used internally to send
+function calls.  Returns false if the kernel buffer is full.
 
 ## Class: Transport
 
@@ -200,8 +213,22 @@ Agent.
 
 Emitted when a message arrives from the remote end of the transport.ts
 
+### Event: 'drain'
+
+`function () { }`
+
+Emitted when the writable stream emits drain. (The write buffer is empty.)
+
+### Event: 'disconnect'
+
+`function (err) { }`
+
+Emitted when the transport dies.  If this was caused by an error, it will be
+emitted here.
+
 ### transport.send(message)
 
 Send a message to the other end of the transport.  Message is JSON
 serializable object with the addition of being able to serialize node Buffer
-instances and `undefined` values.
+instances and `undefined` values.  Returns true if the kernel buffer is full
+and you should pause your incoming stream.
