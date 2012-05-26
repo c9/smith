@@ -44,7 +44,14 @@ exports.getType = getType;
 // "drain" - drain event from output stream
 function Transport(input, output) {
     var self = this;
-    if (arguments.length === 1) output = input;
+    if (arguments.length === 1) {
+        if (Array.isArray(input)) {
+            output = input[1];
+            input = input[0];
+        } else {
+            output = input;
+        }
+    }
     this.input = input;
     this.output = output;
 
@@ -104,7 +111,7 @@ function Transport(input, output) {
             output.removeListener("end", onDisconnect);
             output.removeListener("timeout", onDisconnect);
             output.removeListener("close", onDisconnect);
-            if (output.destroy) output.destroy();
+            if (output.destroy && output !== process.stdout) output.destroy();
         }
         self.emit("disconnect");
     }
