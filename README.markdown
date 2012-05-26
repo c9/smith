@@ -173,7 +173,7 @@ containing the remoteApi.
 
 Emitted when the transport dies and the remote becomes offline
 
-### Event: `drain`
+### Event: 'drain'
 
 When the writable stream in the transport emits drain, it's forwarded here
 
