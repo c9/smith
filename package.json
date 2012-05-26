@@ -6,13 +6,17 @@
     "name": "smith",
     "description": "Smith is an RPC agent system for Node.JS used in architect and vfs.",
     "version": "0.1.0",
+    "licenses" : [{
+        "type" : "MIT",
+        "url" : "http://github.com/c9/smith/raw/master/LICENSE"
+    }],
     "repository": {
         "type": "git",
         "url": "git://github.com/c9/smith.git"
     },
     "main": "smith.js",
     "engines": {
-        "node": "~0.6.0"
+        "node": ">=0.6.0"
     },
     "dependencies": {
         "msgpack-js": "~0.1.0"
