@@ -16,22 +16,25 @@ For the server, we create a small agent and serve it on a listening tcp port.
 var net = require('net');
 var Agent = require('smith').Agent;
 
-// Create the agent that serves the `add` function.
-var agent = new Agent({
+var api = {
   add: function (a, b, callback) {
     callback(null, a + b);
   }
-});
+};
 
 // Start a TCP server
 net.createServer(function (socket) {
+  // Create the agent that serves the shared api.
+  var agent = new Agent(api);
   // Connect to the remote agent
-  agent.connect(socket, function (err, api, remote) {
+  agent.connect(socket, function (err, api) {
     if (err) return console.error(err.stack);
     console.log("A new client connected");
-    remote.on("disconnect", function (err) {
-      console.error("The client disconnected")
-    });
+  });
+  // Log when the agent disconnects
+  agent.on("disconnect", function (err) {
+    console.error("The client disconnected")
+    if (err) console.error(err.stack);
   });
 
 }).listen(1337, function () {
@@ -39,22 +42,21 @@ net.createServer(function (socket) {
 });
 ```
 
-Then to consume this TCP service, we can create a remote and connect it to the
+Then to consume this TCP service, we can create an agent and connect it to the
 tcp server.
 
 ```js
 var net = require('net');
-var Remote = require('smith').Remote;
-
-// Create our client
-var remote = new Remote()
+var Agent = require('smith').Agent;
 
 var socket = net.connect(1337, function () {
-  remote.connect(socket, function (err, api) {
+  // Create our client
+  var agent = new Agent()
+  agent.connect(socket, function (err, api) {
     api.add(4, 5, function (err, result) {
       if (err) throw err;
       console.log("4 + 5 = %s", result);
-      remote.disconnect();
+      agent.disconnect();
     });
   });
 });
@@ -144,12 +146,41 @@ Create a new Agent instance that serves the functions listed in `api`.
 
 ### agent.api
 
-The functions this agent serves to other agents.
+The functions this agent serves locally to remote agents.
 
-### agent.connect(transport, callback)
+### agent.remoteApi
 
-Convenience wrapper to connect the local Agent instance to a remote Agent
-instance. See `remote.connect` for full docs.
+A object containing proxy functions for the api functions in the remote agent.
+Calling these functions when the remote is offline will result in the last
+argument being called with a ENOTCONNECTED error (assuming it's a function).
+
+### agent.connectionTimeout
+
+If the connection hasn't happened by 10,000 ms, an ETIMEDOUT error will
+happen.  To change the timeoutvalue, change `connectionTimeout` on either the
+instance or the prototype.  Set to zero to disable.
+
+### Event: 'connect'
+
+`function (remoteApi) { }`
+
+When the rpc handshake is complete, the agent will emit a connect event
+containing the remoteApi.
+
+### Event: 'disconnect'
+
+`function () { }`
+
+Emitted when the transport dies and the remote becomes offline
+
+### agent.connect(transport, [callback]))
+
+Start the connection to a new remote agent using `transport`.  Emits `connect` when
+ready or `error` on failure.  Optionally use the callback to get `(err, api,
+agent)` results.
+
+The `transport` argument is either a Transport instance or a duplex Stream.
+The callback will be called with `(err, remoteApi)`.
 
 ## Class: Transport
 
@@ -174,47 +205,3 @@ Emitted when a message arrives from the remote end of the transport.ts
 Send a message to the other end of the transport.  Message is JSON
 serializable object with the addition of being able to serialize node Buffer
 instances and `undefined` values.
-
-## Class: Remote
-
-Remote represents a remote agent.
-
-### new Remote([agent])
-
-Create a new remote that will be paired with the local `agent`.
-
-### remote.api
-
-A object containing proxy functions for the api functions in the remote agent.
-Calling these functions when the remote is offline will result in the last
-argument being called with a ENOTCONNECTED error (assuming it's a function).
-
-### remote.connectionTimeout
-
-If the connection hasn't happened by 10,000 ms, an ETIMEDOUT error will
-happen.  To change the timeoutvalue, change `connectionTimeout` on either the
-instance or the prototype.  Set to zero to disable.
-
-### Event: 'connect'
-
-`function (api) { }`
-
-When the rpc handshake is complete, the remote will emit a connect event
-containing itself.
-
-### Event: 'disconnect'
-
-`function () { }`
-
-Emitted when the transport dies and the remote becomes offline
-
-### remote.connect(transport, [callback]))
-
-Start the connection to a new remote using `transport`.  Emits `connect` when
-ready or `error` on failure.  Optionally use the callback to get `(err, api,
-remote)` results.
-
-The `transport` argument is either a Transport instance or a duplex Stream.
-The callback will be called with `(err, remote, api)` where `remote` is the
-Remote instance.
-

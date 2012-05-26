@@ -26,31 +26,10 @@ var msgpack = require('msgpack-js');
 
 exports.Agent = Agent;
 exports.Transport = Transport;
-exports.Remote = Remote;
 exports.deFramer = deFramer;
 exports.liven = liven;
 exports.freeze = freeze;
 exports.getType = getType;
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Agent is an API serving node in the architect-agent rpc mesh.  It contains
-// the functions that actually do the work.
-// @api - a persistent object that holds the API functions
-// @connect(transport, callback) - A method that connects to a remote agent via
-//                                 a Transport instance.
-function Agent(api) {
-  if (!this instanceof Agent) throw new Error("Forgot to use new with Agent constructor");
-  this.api = api || {};
-}
-inherits(Agent, EventEmitter);
-
-// Connect to a remote Agent via a transport.  Callback on connection, error,
-// or timeout.
-Agent.prototype.connect = function (transport, callback) {
-  var remote = new Remote(this);
-  remote.connect(transport, callback);
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -191,17 +170,13 @@ function deFramer(onFrame) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Remote represents a local proxy of a remote Agent instance.  It can contain
-// a single active Transport connection when it's live.
-// @connect(transport) - Connect to a new remote Agent via transport
-// @disconnect() - Disconnect from the remote agent
-// "connect" - an event emitted when the connection is established
-// "disconnect" - an event emitted when the connection goes down
-// "drain" drain event from the output stream
-function Remote(agent) {
-    if (!this instanceof Remote) throw new Error("Forgot to use new with Remote constructor");
+// Agent is an API serving node in the architect-agent rpc mesh.  It contains
+// a table of functions that actually do the work and serve them to a Agent
+// agent.  An agent can connect to one other agent at a time.
+function Agent(api) {
+    if (!this instanceof Agent) throw new Error("Forgot to use new with Agent constructor");
 
-    this.agent = agent || new Agent();
+    this.api = api || {};
 
     // Bind event handlers and callbacks
     this.disconnect = this.disconnect.bind(this);
@@ -211,17 +186,17 @@ function Remote(agent) {
     this._getFunction = this._getFunction.bind(this);
     this._storeFunction = this._storeFunction.bind(this);
 
-    this.api = {}; // Persist the API object between connections
+    this.remoteApi = {}; // Persist the API object between connections
     this.transport = undefined;
     this.callbacks = undefined;
     this.nextKey = undefined;
 }
-inherits(Remote, EventEmitter);
+inherits(Agent, EventEmitter);
 
-// Time to wait for remote connections to finish
-Remote.prototype.connectionTimeout = 10000;
+// Time to wait for Agent connections to finish
+Agent.prototype.connectionTimeout = 10000;
 
-Remote.prototype.connect = function (transport, callback) {
+Agent.prototype.connect = function (transport, callback) {
     // If they passed in a raw stream, wrap it.
     if (!(transport instanceof Transport)) transport = new Transport(transport);
 
@@ -246,7 +221,7 @@ Remote.prototype.connect = function (transport, callback) {
     var self = this;
     function onConnect(api) {
         reset();
-        if (callback) callback(null, api, self);
+        if (callback) callback(null, api);
     }
     function onError(err) {
         reset();
@@ -254,7 +229,7 @@ Remote.prototype.connect = function (transport, callback) {
         else self.emit("error", err);
     }
     function onTimeout() {
-        var err = new Error("ETIMEDOUT: Timeout while waiting for remote agent to connect.");
+        var err = new Error("ETIMEDOUT: Timeout while waiting for Agent agent to connect.");
         err.code = "ETIMEDOUT";
         self.emit("error", err);
     }
@@ -266,24 +241,24 @@ Remote.prototype.connect = function (transport, callback) {
     }
 };
 
-Remote.prototype.send = function (message) {
+Agent.prototype.send = function (message) {
     message = freeze(message, this._storeFunction);
     return this.transport.send(message);
 }
 
-Remote.prototype._onReady = function (names) {
+Agent.prototype._onReady = function (names) {
     if (!Array.isArray(names)) return;
     var self = this;
     names.forEach(function (name) {
         // Ignore already set functions so that existing function references
         // stay valid.
-        if (self.api[name]) return;
-        self.api[name] = function () {
+        if (self.remoteApi[name]) return;
+        self.remoteApi[name] = function () {
             // When disconnected we can't forward the call.
             if (!self.transport) {
                 var callback = arguments[arguments.length - 1];
                 if (typeof callback === "function") {
-                    var err = new Error("ENOTCONNECTED: Remote is offline, try again later");
+                    var err = new Error("ENOTCONNECTED: Agent is offline, try again later");
                     err.code = "ENOTCONNECTED";
                     callback(err);
                 }
@@ -294,12 +269,12 @@ Remote.prototype._onReady = function (names) {
             return self.send(args);
         };
     });
-    this.emit("connect", this.api);
+    this.emit("connect", this.remoteApi);
 };
 
-// Disconnect resets the state of the remote, flushes callbacks and emits a
+// Disconnect resets the state of the Agent, flushes callbacks and emits a
 // "disconnect" event with optional error object.
-Remote.prototype.disconnect = function (err) {
+Agent.prototype.disconnect = function (err) {
     if (!this.transport) {
         if (err) this.emit("error", err);
         return;
@@ -317,7 +292,7 @@ Remote.prototype.disconnect = function (err) {
     if (this.callbacks) {
         var cerr = err;
         if (!cerr) {
-            cerr = new Error("EDISCONNECT: Remote disconnected");
+            cerr = new Error("EDISCONNECT: Agent disconnected");
             cerr.code = "EDISCONNECT";
         }
         var callbacks = this.callbacks;
@@ -332,12 +307,12 @@ Remote.prototype.disconnect = function (err) {
 };
 
 // Forward drain events
-Remote.prototype._onDrain = function () {
+Agent.prototype._onDrain = function () {
     this.emit("drain");
 };
 
 // Route incoming messages to the right functions
-Remote.prototype._onMessage = function (message) {
+Agent.prototype._onMessage = function (message) {
     // console.log(process.pid, message);
     if (!(Array.isArray(message) && message.length)) {
         return this.emit("error", new Error("Message should be an array"));
@@ -346,13 +321,13 @@ Remote.prototype._onMessage = function (message) {
     var id = message[0];
     var fn;
     if (id === "ready") {
-        var keys = Object.keys(this.agent.api);
+        var keys = Object.keys(this.api);
         fn = function (callback) {
             callback(keys);
         };
     }
     else {
-        fn = typeof id === "string" ? this.agent.api[id] : this.callbacks[id];
+        fn = typeof id === "string" ? this.api[id] : this.callbacks[id];
     }
     if (!(typeof fn === "function")) {
         return this.emit("error",  new Error("Should be function"));
@@ -360,12 +335,12 @@ Remote.prototype._onMessage = function (message) {
     fn.apply(null, message.slice(1));
 };
 
-// Create a proxy function that calls fn key on the remote side.
-// This is for when a remote passes a callback to a local function.
-Remote.prototype._getFunction = function (key) {
+// Create a proxy function that calls fn key on the Agent side.
+// This is for when a Agent passes a callback to a local function.
+Agent.prototype._getFunction = function (key) {
     var transport = this.transport;
     return function () {
-        // Call a remote function using [key, args...]
+        // Call a Agent function using [key, args...]
         var args = [key];
         // Push is actually fast http://jsperf.com/array-push-vs-concat-vs-unshift
         args.push.apply(args, arguments);
@@ -373,8 +348,8 @@ Remote.prototype._getFunction = function (key) {
     };
 };
 
-// This is for when we call a remote function and pass in a callback
-Remote.prototype._storeFunction = function (fn) {
+// This is for when we call a Agent function and pass in a callback
+Agent.prototype._storeFunction = function (fn) {
     var key = this.nextKey;
     while (this.callbacks.hasOwnProperty(key)) {
         key = (key + 1) >> 0;

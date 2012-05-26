@@ -1,10 +1,9 @@
 var net = require('net');
 var Agent = require('smith').Agent;
 var Transport = require('smith').Transport;
-var Remote = require('smith').Remote;
 
-// Create our client remote.
-var remote = new Remote();
+// Create our client agent.
+var agent = new Agent();
 
 var backoff = 1000;
 var add;
@@ -22,7 +21,7 @@ function query() {
 
 // On the first connect, store a reference to the add function and start
 // calling it on an interval
-remote.once("connect", function (api) {
+agent.once("connect", function (api) {
   add = api.add;
   console.log("Running query() every 3000 ms");
   setInterval(query, 3000);
@@ -30,7 +29,7 @@ remote.once("connect", function (api) {
 });
 
 // On every connect, log the connection and reset the backoff time.
-remote.on("connect", function () {
+agent.on("connect", function () {
   console.log("Connected!");
   if (backoff > 1000) {
     console.log(" Resetting backoff to 1000ms.");
@@ -39,12 +38,12 @@ remote.on("connect", function () {
 });
 
 // Set up auto-reconnect and do initial connection
-remote.on("disconnect", onError);
+agent.on("disconnect", onError);
 connect();
 
 function connect() {
   var socket = net.connect(1337, function () {
-    remote.connect(new Transport(socket));
+    agent.connect(new Transport(socket));
   });
   socket.on("error", onError);
 }
