@@ -24,7 +24,7 @@ b.connect(pair.B, function (err, BA) {
   }
 
   function test() {
-    BA.api.add(1, 2, function (result) {
+    BA.add(1, 2, function (result) {
       assert.equal(result, 3);
       if (left % 10000 === 0) {
         var sample = process.memoryUsage();

@@ -119,12 +119,12 @@ function Transport(input, output) {
         input.removeListener("timeout", onDisconnect);
         input.removeListener("close", onDisconnect);
         output.removeListener("drain", onDrain);
-        input.destroy();
+        if (input.destroy) input.destroy();
         if (input !== output) {
             output.removeListener("end", onDisconnect);
             output.removeListener("timeout", onDisconnect);
             output.removeListener("close", onDisconnect);
-            output.destroy();
+            if (output.destroy) output.destroy();
         }
         self.emit("disconnect");
     }

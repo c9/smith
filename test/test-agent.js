@@ -27,7 +27,7 @@ function testFakeTransport() {
 		fulfill("connect BA");
 		console.log("B is connected to A!");
 		expect("result");
-		BA.api.add(1, 2, function (result) {
+		BA.add(1, 2, function (result) {
 			fulfill("result");
 			console.log("Result", result);
 			assert.equal(result, 3);
@@ -67,7 +67,7 @@ function testSocketTransport() {
 				fulfill("connectBA");
 				console.log("B is connected to A!");
 				expect("result2");
-				BA.api.add(1, 2, function (result) {
+				BA.add(1, 2, function (result) {
 					fulfill("result2");
 					console.log("Result", result);
 					assert.equal(result, 3);
