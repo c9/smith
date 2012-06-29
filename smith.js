@@ -276,8 +276,12 @@ Agent.prototype._onReady = function (names) {
             return self.send(args);
         };
     });
-    this.emit("connect", this.remoteApi);
+    this._emitConnect();
 };
+
+Agent.prototype._emitConnect = function () {
+    this.emit("connect", this.remoteApi);
+}
 
 // Disconnect resets the state of the Agent, flushes callbacks and emits a
 // "disconnect" event with optional error object.
