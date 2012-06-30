@@ -22,6 +22,7 @@ THE SOFTWARE.
 
 var EventEmitter = require('events').EventEmitter;
 var inherits = require('util').inherits;
+var inspect = require('util').inspect;
 var msgpack = require('msgpack-js');
 
 exports.Agent = Agent;
@@ -120,6 +121,9 @@ function Transport(input, output) {
 inherits(Transport, EventEmitter);
 
 Transport.prototype.send = function (message) {
+    // Uncomment to debug protocol
+    //console.log(process.pid + ": " + inspect(message, false, 2, true));
+
     // Serialize the messsage.
     var frame = msgpack.encode(message);
 
@@ -127,6 +131,7 @@ Transport.prototype.send = function (message) {
     var header = new Buffer(4);
     header.writeUInt32BE(frame.length, 0);
     this.output.write(header);
+
 
     // Send the serialized message.
     return this.output.write(frame);
@@ -143,7 +148,7 @@ function deFramer(onFrame) {
     return function parse(chunk) {
         for (var i = 0, l = chunk.length; i < l; i++) {
             switch (state) {
-            case 0: length |= chunk[i] << 24; state = 1; ; break;
+            case 0: length |= chunk[i] << 24; state = 1; break;
             case 1: length |= chunk[i] << 16; state = 2; break;
             case 2: length |= chunk[i] << 8; state = 3; break;
             case 3: length |= chunk[i]; state = 4;
@@ -173,7 +178,7 @@ function deFramer(onFrame) {
             }
         }
     };
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,7 +256,7 @@ Agent.prototype.connect = function (transport, callback) {
 Agent.prototype.send = function (message) {
     message = freeze(message, this._storeFunction);
     return this.transport.send(message);
-}
+};
 
 Agent.prototype._onReady = function (names) {
     if (!Array.isArray(names)) return;
@@ -281,7 +286,7 @@ Agent.prototype._onReady = function (names) {
 
 Agent.prototype._emitConnect = function () {
     this.emit("connect", this.remoteApi);
-}
+};
 
 // Disconnect resets the state of the Agent, flushes callbacks and emits a
 // "disconnect" event with optional error object.
@@ -299,6 +304,8 @@ Agent.prototype.disconnect = function (err) {
     this.transport.disconnect();
     this.transport = undefined;
 
+    this.emit("disconnect", err);
+
     // Flush any callbacks
     if (this.callbacks) {
         var cerr = err;
@@ -314,7 +321,6 @@ Agent.prototype.disconnect = function (err) {
     }
     this.nextKey = undefined;
 
-    this.emit("disconnect", err);
 };
 
 // Forward drain events
@@ -324,7 +330,6 @@ Agent.prototype._onDrain = function () {
 
 // Route incoming messages to the right functions
 Agent.prototype._onMessage = function (message) {
-    // console.log(process.pid, message);
     if (!(Array.isArray(message) && message.length)) {
         return this.emit("error", new Error("Message should be an array"));
     }
@@ -340,7 +345,7 @@ Agent.prototype._onMessage = function (message) {
     else {
         fn = typeof id === "string" ? this.api[id] : this.callbacks[id];
     }
-    if (!(typeof fn === "function")) {
+    if (typeof fn !== "function") {
         return this.emit("error",  new Error("Should be function"));
     }
     fn.apply(null, message.slice(1));
@@ -368,7 +373,7 @@ Agent.prototype._storeFunction = function (fn) {
             throw new Error("Ran out of keys!!");
         }
     }
-    this.nextKey = (key + 1) >> 0;;
+    this.nextKey = (key + 1) >> 0;
 
     var callbacks = this.callbacks;
     var self = this;
