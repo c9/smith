@@ -25,6 +25,7 @@ var inherits = require('util').inherits;
 var inspect = require('util').inspect;
 var msgpack = require('msgpack-js');
 
+exports.msgpack = msgpack;
 exports.Agent = Agent;
 exports.Transport = Transport;
 exports.deFramer = deFramer;
@@ -80,6 +81,7 @@ function Transport(input, output) {
         } catch (err) {
             return self.emit("error", err);
         }
+        // console.log(process.pid + " <- " + inspect(message, false, 2, true));
         self.emit("message", message);
     });
 
@@ -122,7 +124,7 @@ inherits(Transport, EventEmitter);
 
 Transport.prototype.send = function (message) {
     // Uncomment to debug protocol
-    //console.log(process.pid + ": " + inspect(message, false, 2, true));
+    // console.log(process.pid + " -> " + inspect(message, false, 2, true));
 
     // Serialize the messsage.
     var frame = msgpack.encode(message);
@@ -330,6 +332,7 @@ Agent.prototype._onDrain = function () {
 
 // Route incoming messages to the right functions
 Agent.prototype._onMessage = function (message) {
+
     if (!(Array.isArray(message) && message.length)) {
         return this.emit("error", new Error("Message should be an array"));
     }
