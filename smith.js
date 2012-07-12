@@ -227,9 +227,11 @@ Agent.prototype.connect = function (transport, callback) {
 
     // Start timeout and route events to callback
     this.on("connect", onConnect);
+    this.on("disconnect", onError);
     this.on("error", onError);
+    var timeout;
     if (this.connectionTimeout) {
-        var timeout = setTimeout(onTimeout, this.connectionTimeout);
+        timeout = setTimeout(onTimeout, this.connectionTimeout);
     }
 
     var self = this;
@@ -243,6 +245,7 @@ Agent.prototype.connect = function (transport, callback) {
         else self.emit("error", err);
     }
     function onTimeout() {
+        reset();
         var err = new Error("ETIMEDOUT: Timeout while waiting for Agent agent to connect.");
         err.code = "ETIMEDOUT";
         self.emit("error", err);
@@ -250,6 +253,7 @@ Agent.prototype.connect = function (transport, callback) {
     // Only one event should happen, so stop event listeners on first event.
     function reset() {
         self.removeListener("connect", onConnect);
+        self.removeListener("disconnect", onError);
         self.removeListener("error", onError);
         clearTimeout(timeout);
     }
