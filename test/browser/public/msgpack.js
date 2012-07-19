@@ -1,0 +1,1 @@
+../msgpack-js-browser/msgpack.js

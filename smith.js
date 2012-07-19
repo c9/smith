@@ -19,11 +19,18 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
+( // Module boilerplate to support browser globals, node.js and AMD.
+  (typeof module === "object" && function (m) { module.exports = m(require('events').EventEmitter, require('msgpack-js')); }) ||
+  (typeof define === "function" && function (m) { define("smith", ["EventEmitter", "msgpack"], m); }) ||
+  (function (m) { window.smith = m(window.EventEmitter, window.msgpack); })
+)(function (EventEmitter, msgpack) {
+"use strict";
 
-var EventEmitter = require('events').EventEmitter;
-var inherits = require('util').inherits;
-var inspect = require('util').inspect;
-var msgpack = require('msgpack-js');
+function inherits(Child, Parent) {
+  Child.prototype = Object.create(Parent.prototype, { constructor: { value: Child }});
+}
+
+var exports = {};
 
 exports.msgpack = msgpack;
 exports.Agent = Agent;
@@ -81,7 +88,7 @@ function Transport(input, output) {
         } catch (err) {
             return self.emit("error", err);
         }
-        // console.log(process.pid + " <- " + inspect(message, false, 2, true));
+        // console.log(process.pid + " <- " + require('util').inspect(message, false, 2, true));
         self.emit("message", message);
     });
 
@@ -124,7 +131,7 @@ inherits(Transport, EventEmitter);
 
 Transport.prototype.send = function (message) {
     // Uncomment to debug protocol
-    // console.log(process.pid + " -> " + inspect(message, false, 2, true));
+    // console.log(process.pid + " -> " + require('util').inspect(message, false, 2, true));
 
     // Serialize the messsage.
     var frame = msgpack.encode(message);
@@ -531,3 +538,101 @@ function map(value, callback, thisp, keyMap) {
     }
     return obj;
 }
+
+
+exports.WebSocketTransport = WebSocketTransport;
+inherits(WebSocketTransport, Transport);
+
+// "message" - event emitted when we get a message from the other side.
+// "disconnect" - the transport was disconnected
+// "error" - event emitted for stream error or disconnect
+// "drain" - drain event from output stream
+function WebSocketTransport(socket, debug) {
+    this.socket = socket;
+    this.debug = debug;
+    var self = this;
+
+    socket.on("message", onMessage);
+    socket.on("close", onDisconnect);
+    socket.on("error", onError);
+    function onError(err) {
+        self.emit("error", err);
+    }
+    function onMessage(data) {
+        var message;
+        try { message = msgpack.decode(data); }
+        catch (err) { return onError(err); }
+        debug && console.log(process.pid + " <- " + require('util').inspect(message, false, 2, true));
+        self.emit("message", message);
+    }
+    function onDisconnect() {
+        // Remove all the listeners we added and destroy the socket
+        socket.removeListener("message", onMessage);
+        socket.removeListener("close", onDisconnect);
+        self.emit("disconnect");
+    }
+    this.disconnect = onDisconnect;
+    // TODO: Implement "drain" event, pause(), and resume() properly.
+    // function onDrain() {
+    //   self.emit("drain");
+    // }
+}
+
+WebSocketTransport.prototype.send = function (message) {
+    // Uncomment to debug protocol
+    this.debug && console.log(process.pid + " -> " + require('util').inspect(message, false, 2, true));
+    var data;
+    try { data = msgpack.encode(message); }
+    catch (err) { return this.emit("error", err); }
+    this.socket.send(data, {binary: true});
+};
+
+exports.BrowserTransport = BrowserTransport;
+inherits(BrowserTransport, Transport);
+
+function BrowserTransport(websocket, debug) {
+    this.websocket = websocket;
+    this.debug = debug;
+    var self = this;
+
+    websocket.binaryType = 'arraybuffer';
+    websocket.onmessage = function (evt) {
+        var message;
+        try { message = msgpack.decode(evt.data); }
+        catch (err) { return onError(err); }
+        debug && console.log("<-", message);
+        self.emit("message", message);
+    };
+
+    websocket.onclose = function (evt) {
+    };
+
+    websocket.onerror = function (evt) {
+        onError(new Error(evt.data));
+    };
+
+    function onError(err) {
+        self.emit("error", err);
+    }
+
+    function onDisconnect() {
+        // Remove all the listeners we added and destroy the socket
+        delete websocket.onmessage;
+        delete websocket.onclose;
+        self.emit("disconnect");
+    }
+    this.disconnect = onDisconnect;
+}
+
+BrowserTransport.prototype.send = function (message) {
+    // Uncomment to debug protocol
+    this.debug && console.log("->", message);
+    var data;
+    try { data = msgpack.encode(message); }
+    catch (err) { return this.emit("error", err); }
+    this.websocket.send(data, {binary: true});
+};
+
+
+return exports;
+});

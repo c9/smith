@@ -1,0 +1,11 @@
+{
+  "name": "smith-browsertest",
+  "prvate": true,
+  "version": "0.0.0",
+  "dependencies": {
+    "smith": "~0.1.5",
+    "ws": "~0.4.21",
+    "stack": "~0.1.0",
+    "creationix": "~0.3.1"
+  }
+}

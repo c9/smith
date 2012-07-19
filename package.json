@@ -5,7 +5,7 @@
     ],
     "name": "smith",
     "description": "Smith is an RPC agent system for Node.JS used in architect and vfs.",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "licenses" : [{
         "type" : "MIT",
         "url" : "http://github.com/c9/smith/raw/master/LICENSE"
