@@ -1,3 +1,7 @@
+# Smith
+
+[![Build Status](https://secure.travis-ci.org/c9/smith.png)](http://travis-ci.org/c9/smith)
+
 Smith is an RPC agent system for Node.JS used in architect and vfs.
 
 ## Usage
