@@ -1,6 +1,6 @@
 require('./helpers');
-var Agent = require('..').Agent;
-var Transport = require('..').Transport;
+var Agent = require('smith').Agent;
+var Transport = require('smith').Transport;
 
 var a = new Agent({
 	add: function (a, b, callback) {

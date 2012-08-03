@@ -1,6 +1,0 @@
-[submodule "test/browser/eventemitter-browser"]
-	path = test/browser/eventemitter-browser
-	url = https://github.com/creationix/eventemitter-browser.git
-[submodule "test/browser/msgpack-js-browser"]
-	path = test/browser/msgpack-js-browser
-	url = https://github.com/creationix/msgpack-js-browser.git

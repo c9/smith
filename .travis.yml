@@ -2,5 +2,5 @@ language: node_js
 node_js:
   - 0.8
   - 0.6
-script: tests/test-all.sh
+script: ./test-all.sh
 
