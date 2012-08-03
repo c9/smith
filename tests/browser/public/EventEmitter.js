@@ -1,1 +1,0 @@
-../eventemitter-browser/EventEmitter.js

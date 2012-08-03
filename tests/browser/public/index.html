@@ -28,10 +28,9 @@
       <tbody>
       </tbody>
     </table>
-    <script src="EventEmitter.js"></script>
-    <script src="msgpack.js"></script>
-    <script src="smith.js"></script>
+    <script src="jam/require.js"></script>
     <script>
+    require(["smith"], function (smith) {
 
 
       var body = document.querySelector("tbody");
@@ -102,6 +101,7 @@
         body.appendChild(tr);
       }
 
+    });
     </script>
 </body>
 </html>

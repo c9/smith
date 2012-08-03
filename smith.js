@@ -20,11 +20,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 ( // Module boilerplate to support browser globals, node.js and AMD.
-  (typeof module === "object" && function (m) { module.exports = m(require('events').EventEmitter, require('msgpack-js')); }) ||
-  (typeof define === "function" && function (m) { define("smith", ["EventEmitter", "msgpack"], m); }) ||
-  (function (m) { window.smith = m(window.EventEmitter, window.msgpack); })
-)(function (EventEmitter, msgpack) {
+  (typeof module === "object" && function (m) { module.exports = m(require('events'), require('msgpack-js')); }) ||
+  (typeof define === "function" && function (m) { define("smith", ["events", "msgpack-js"], m); }) ||
+  (function (m) { window.smith = m(window.events, window.msgpack); })
+)(function (events, msgpack) {
 "use strict";
+var EventEmitter = events.EventEmitter;
 
 function inherits(Child, Parent) {
   Child.prototype = Object.create(Parent.prototype, { constructor: { value: Child }});
