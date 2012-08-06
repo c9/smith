@@ -1,9 +1,14 @@
 #!/bin/sh
+cd tests
+npm install
 echo "\nChecking message deframer..." && \
-node tests/test-framer.js && \
+node test-framer.js && \
 echo "\nChecking message scrubber..." && \
-node tests/test-scrubber.js && \
+node test-scrubber.js && \
 echo "\nChecking Agent interface..." && \
-node tests/test-agent.js && \
+node test-agent.js && \
 echo "\nChecking for memory leaks..." && \
-node tests/test-memory-leaks.js
+node test-memory-leaks.js && \
+echo "\nTesting in browser..." && \
+echo "DISABLED: phantomjs doesn't support binary-websockets yet"
+# node test-browser.js

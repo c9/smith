@@ -1,1 +1,0 @@
-To run this test, grab the server's dependencies with `npm install`  And grab the browser's dependencies with `git submodule update --init` in the root of the repo.  Then run the server with `node server.js` and follow further instructions.
