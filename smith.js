@@ -634,6 +634,54 @@ BrowserTransport.prototype.send = function (message) {
     this.websocket.send(data, {binary: true});
 };
 
+exports.EngineIoTransport = EngineIoTransport;
+inherits(EngineIoTransport, Transport);
+function EngineIoTransport(socket) {
+  var self = this;
+
+  // Route errors from socket to transport.
+  socket.on("error", function (err) {
+    self.emit("error", err);
+  });
+
+  // Parse and route messages from socket to transport.
+  socket.on("message", function (json) {
+    var message;
+    try {
+      message = JSON.parse(json);
+    }
+    catch (err) {
+      self.emit("error", err);
+      return;
+    }
+    if (Array.isArray(message)) {
+      self.emit("message", message);
+    }
+    else {
+      self.emit("legacy", message);
+    }
+  });
+
+  // Route close events as disconnect events
+  socket.on("close", function (reason) {
+    self.emit("disconnect", reason);
+  });
+
+  // Encode and route send calls to socket.
+  this.send = function (message) {
+    var json;
+    try {
+      json = JSON.stringify(message);
+    }
+    catch (err) {
+      self.emit("error", err);
+      return;
+    }
+    return socket.send(json);
+  };
+
+}
+
 
 return exports;
 });
