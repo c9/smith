@@ -21,7 +21,7 @@
     "engines": {
         "node": ">=0.6.0"
     },
-	"pm": "npm",
+    "pm": "npm",
     "dependencies": {
         "msgpack-js": "~0.1.0"
     }
