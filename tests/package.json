@@ -3,7 +3,7 @@
   "prvate": true,
   "version": "0.0.0",
   "scripts": {
-    "install": "cd public && ../node_modules/.bin/jam install msgpack-js events"
+    "install": "cd public && ../node_modules/.bin/jam install msgpack-js"
   },
   "dependencies": {
     "ws": "~0.4.21",

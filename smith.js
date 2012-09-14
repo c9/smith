@@ -21,7 +21,7 @@ THE SOFTWARE.
 */
 ( // Module boilerplate to support browser globals, node.js and AMD.
   (typeof module === "object" && function (m) { module.exports = m(require('events'), require('msgpack-js')); }) ||
-  (typeof define === "function" && function (m) { define("smith", ["events", "msgpack-js"], m); }) ||
+  (typeof define === "function" && function (m) { define("smith", ["./events-amd", "msgpack-js"], m); }) ||
   (function (m) { window.smith = m(window.events, window.msgpack); })
 )(function (events, msgpack) {
 "use strict";
