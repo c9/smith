@@ -414,7 +414,7 @@ function freeze(value, storeFunction) {
         // find the type of the value
         var type = getType(value);
         // pass primitives through as-is
-        if (type !== "function" && type !== "object" && type !== "array") {
+        if (type !== "function" && type !== "object" && type !== "array" && type !== "date") {
             return value;
         }
 
@@ -432,6 +432,10 @@ function freeze(value, storeFunction) {
         // Look for functions
         if (type === "function") {
             o = storeFunction(value);
+        }
+
+        if (type === "date") {
+            o = {d:value.getTime()};
         }
 
         if (o) return {$:o};
@@ -471,6 +475,10 @@ function liven(message, getFunction) {
               parent[key] = get(obj.root, special);
               return parent[key];
             }
+            if (typeof special === "object") {
+                parent[key] = new Date(special.d);
+                return parent[key];
+            }
             // Load functions
             parent[key] = getFunction(special);
             return  parent[key];
@@ -501,6 +509,10 @@ function getType(value) {
     }
     if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) {
         return "buffer";
+    }
+    // TODO: find a way to work with Date instances from other contexts.
+    if (value instanceof Date) {
+        return "date";
     }
     return typeof value;
 }

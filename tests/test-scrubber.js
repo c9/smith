@@ -19,7 +19,8 @@ var pairs = [
   ["Hello", "Hello"],
   [new Buffer([0,1,2,3,4,5,6]), new Buffer([0,1,2,3,4,5,6])],
   [{fn:foo}, {fn:{$:3}}],
-  [cycle, {a:true,b:false,d:[1,2,3],e:{$:["d"]},cycle:{$:[]}}]
+  [cycle, {a:true,b:false,d:[1,2,3],e:{$:["d"]},cycle:{$:[]}}],
+  [new Date("Sun, 28 Mar 1982 11:46:00 MST"), {$:{d:0x59eaaaee40}}]
 ];
 
 var functions = {};
@@ -57,7 +58,7 @@ function deepEqual(a, b) {
     if (a === b) return true;
     var type = getType(a);
     if (getType(b) !== type) return false;
-    if (type === "buffer") return a.toString() === b.toString();
+    if (type === "buffer" || type === "date") return a.toString() === b.toString();
     if (type !== "object" && type !== "array") return a === b;
 
     // Ignore cycles for now
