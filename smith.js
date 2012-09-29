@@ -363,7 +363,7 @@ Agent.prototype._onMessage = function (message) {
     if (typeof fn !== "function") {
         return this.emit("error",  new Error("Should be function"));
     }
-    fn.apply(null, message.slice(1));
+    fn.apply(this, message.slice(1));
 };
 
 // Create a proxy function that calls fn key on the Agent side.
