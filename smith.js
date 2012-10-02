@@ -52,15 +52,15 @@ exports.getType = getType;
 // "disconnect" - the transport was disconnected
 // "error" - event emitted for stream error or disconnect
 // "drain" - drain event from output stream
-function Transport(input, output) {
+function Transport(input, debug) {
     var self = this;
-    if (arguments.length === 1) {
-        if (Array.isArray(input)) {
-            output = input[1];
-            input = input[0];
-        } else {
-            output = input;
-        }
+    this.debug = debug;
+    var output;
+    if (Array.isArray(input)) {
+        output = input[1];
+        input = input[0];
+    } else {
+        output = input;
     }
     this.input = input;
     this.output = output;
@@ -89,7 +89,7 @@ function Transport(input, output) {
         } catch (err) {
             return self.emit("error", err);
         }
-        // console.log(process.pid + " <- " + require('util').inspect(message, false, 2, true));
+        debug && console.log(process.pid + " <- " + require('util').inspect(message, false, 2, true));
         self.emit("message", message);
     });
 
@@ -132,7 +132,7 @@ inherits(Transport, EventEmitter);
 
 Transport.prototype.send = function (message) {
     // Uncomment to debug protocol
-    // console.log(process.pid + " -> " + require('util').inspect(message, false, 2, true));
+    this.debug && console.log(process.pid + " -> " + require('util').inspect(message, false, 2, true));
 
     // Serialize the messsage.
     var frame = msgpack.encode(message);
