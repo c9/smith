@@ -62,7 +62,7 @@ require(["smith"], function (smith) {
   assert("agent instanceof smith.Agent", agent instanceof smith.Agent);
 
   expect("socket opened");
-  var ws = new WebSocket("ws://localhost:8080/");
+  var ws = new WebSocket(window.location.origin.replace(/^http/, "ws") + "/");
   ws.onopen = function () {
     fulfill("socket opened");
     expect("agent connected");
