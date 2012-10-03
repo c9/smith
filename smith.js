@@ -318,15 +318,16 @@ Agent.prototype.disconnect = function (err) {
     this.transport.disconnect();
     this.transport = undefined;
 
-    this.emit("disconnect", err);
+    var cerr = err;
+    if (!cerr) {
+        cerr = new Error("EDISCONNECT: Agent disconnected");
+        cerr.code = "EDISCONNECT";
+    }
+
+    this.emit("disconnect", cerr);
 
     // Flush any callbacks
     if (this.callbacks) {
-        var cerr = err;
-        if (!cerr) {
-            cerr = new Error("EDISCONNECT: Agent disconnected");
-            cerr.code = "EDISCONNECT";
-        }
         var callbacks = this.callbacks;
         this.callbacks = undefined;
         forEach(callbacks, function (callback) {
