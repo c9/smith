@@ -15,7 +15,6 @@
     "packageDir": "public/jam",
     "baseUrl": "public",
     "dependencies": {
-      "events": "~0.0.1",
       "msgpack-js": "~0.1.2"
     }
   }
