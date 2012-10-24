@@ -1,6 +1,6 @@
 {
   "name": "smith",
-  "description": "Smith is an RPC agent system for Node.JS used in architect and vfs."
+  "description": "Smith is an RPC agent system for Node.JS used in architect and vfs.",
   "version": "0.1.13",
   "main": "smith.js",
   "dependencies": {
