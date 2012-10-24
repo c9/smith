@@ -4,7 +4,8 @@
   "version": "0.1.13",
   "main": "smith.js",
   "dependencies": {
-    "creationix/msgpack-js-browser": "*"
+    "creationix/msgpack-js-browser": "*",
+    "juliangruber/events": "*"
   },
   "scripts": ["smith.js"]
 }

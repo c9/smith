@@ -20,7 +20,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 ( // Module boilerplate to support browser globals, node.js and AMD.
-  (typeof module === "object" && function (m) { module.exports = m(require('events'), require('msgpack-js')); }) ||
+  (typeof module !== "undefined" && function (m) { module.exports = m(require('events'), require('msgpack-js')); }) ||
   (typeof define === "function" && function (m) { define("smith", ["./events-amd", "msgpack-js"], m); }) ||
   (function (m) { window.smith = m(window.events, window.msgpack); })
 )(function (events, msgpack) {
