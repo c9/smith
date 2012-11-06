@@ -8,7 +8,7 @@
     ],
     "name": "smith",
     "description": "Smith is an RPC agent system for Node.JS used in architect and vfs.",
-    "version": "0.1.14",
+    "version": "0.1.15",
     "scripts": {
         "test": "./test-all.sh"
     },
