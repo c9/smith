@@ -162,6 +162,10 @@ function deFramer(onFrame) {
             case 1: length |= chunk[i] << 16; state = 2; break;
             case 2: length |= chunk[i] << 8; state = 3; break;
             case 3: length |= chunk[i]; state = 4;
+                if (length > 100 * 1024 * 1024) {
+                  throw new Error("Too big buffer " + length +
+                                  ", chunk: " + chunk);
+                }
                 buffer = new Buffer(length);
                 offset = 0;
                 break;
