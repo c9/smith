@@ -138,8 +138,40 @@ Transport.prototype.send = function (message) {
     var frame = msgpack.encode(message);
 
     // Send a 4 byte length header before the frame.
-    var header = new Buffer(4);
+    var header = new Buffer(10);
     header.writeUInt32BE(frame.length, 0);
+
+    // Compute 4 byte jenkins hash
+    var a = frame.length >> 24,
+        b = (frame.length >> 16) & 0xff,
+        c = (frame.length >> 8) & 0xff,
+        d = frame.length & 0xff;
+
+    // Little bit inlined, but fast
+    var hash = 0;
+    hash += a;
+    hash += hash << 10;
+    hash += hash >> 6;
+    hash += b;
+    hash += hash << 10;
+    hash += hash >> 6;
+    hash += c;
+    hash += hash << 10;
+    hash += hash >> 6;
+    hash += d;
+    hash += hash << 10;
+    hash += hash >> 6;
+
+    // Shuffle bits
+    hash += hash << 3;
+    hash = hash ^ (hash >> 11);
+    hash += hash << 15;
+    hash |= 0;
+    header.writeInt32BE(hash, 4);
+
+    // 2 Reserved bytes for future usage
+    header.writeUInt16BE(0, 8);
+
     this.output.write(header);
 
 
@@ -154,18 +186,58 @@ function deFramer(onFrame) {
     var buffer;
     var state = 0;
     var length = 0;
+    var expected_hash = 0;
+    var hash = 0;
     var offset;
     return function parse(chunk) {
         for (var i = 0, l = chunk.length; i < l; i++) {
             switch (state) {
-            case 0: length |= chunk[i] << 24; state = 1; break;
+            case 0:
+                length |= chunk[i] << 24;
+                expected_hash = 0;
+                state = 1;
+                break;
             case 1: length |= chunk[i] << 16; state = 2; break;
             case 2: length |= chunk[i] << 8; state = 3; break;
-            case 3: length |= chunk[i]; state = 4;
+            case 3:
+                length |= chunk[i];
+                expected_hash += chunk[i];
+                expected_hash += expected_hash << 10;
+                expected_hash += expected_hash >> 6;
+
+                // Shuffle bits
+                expected_hash += expected_hash << 3;
+                expected_hash = expected_hash ^ (expected_hash >> 11);
+                expected_hash += expected_hash << 15;
+                expected_hash |= 0;
+
+                hash = 0;
+                state = 4;
+                break;
+            case 4: hash |= chunk[i] << 24; state = 5; break;
+            case 5: hash |= chunk[i] << 16; state = 6; break;
+            case 6: hash |= chunk[i] << 8; state = 7; break;
+            case 7: hash |= chunk[i]; state = 8;
+                if (hash !== expected_hash) {
+                  throw new Error("Hash mismatch, expected: " + expected_hash +
+                                  " got: " + hash + ", chunk: " + chunk);
+                }
+
+                if (length > 100 * 1024 * 1024) {
+                  throw new Error("Too big buffer " + length +
+                                  ", chunk: " + chunk);
+                }
+
                 buffer = new Buffer(length);
                 offset = 0;
+                state = 9;
                 break;
-            case 4:
+            // Two reserved bytes
+            case 9: state = 10; break;
+            case 10: state = 11; break;
+
+            // Data itself
+            case 11:
                 var len = l - i;
                 var emit = false;
                 if (len + offset >= length) {
@@ -186,6 +258,15 @@ function deFramer(onFrame) {
                 }
                 break;
             }
+
+            // Common case
+            if (state < 3 && !emit) {
+              expected_hash += chunk[i];
+              expected_hash += expected_hash << 10;
+              expected_hash += expected_hash >> 6;
+            }
+
+            emit = false;
         }
     };
 }
