@@ -7,7 +7,7 @@ function frameMessages(messages) {
     var i, l = messages.length;
 
     // Calculate total size of final buffer
-    var total = l * 4;
+    var total = l * 10;
     for (i = 0; i < l; i++) {
         total += messages[i].length;
     }
@@ -19,8 +19,40 @@ function frameMessages(messages) {
         var message = messages[i];
         var length = message.length;
         buffer.writeUInt32BE(length, offset);
-        message.copy(buffer, offset + 4);
-        offset += length + 4;
+
+        // Compute 4 byte hash
+        var a = length >> 24,
+            b = (length >> 16) & 0xff,
+            c = (length >> 8) & 0xff,
+            d = length & 0xff;
+
+        // Little bit inlined, but fast
+        var hash = 0;
+        hash += a;
+        hash += hash << 10;
+        hash += hash >> 6;
+        hash += b;
+        hash += hash << 10;
+        hash += hash >> 6;
+        hash += c;
+        hash += hash << 10;
+        hash += hash >> 6;
+        hash += d;
+        hash += hash << 10;
+        hash += hash >> 6;
+
+        // Shuffle bits
+        hash += hash << 3;
+        hash = hash ^ (hash >> 11);
+        hash += hash << 15;
+        hash |= 0;
+        buffer.writeInt32BE(hash, offset + 4);
+
+        // Reserved bytes
+        buffer.writeUInt16BE(0, offset + 8);
+
+        message.copy(buffer, offset + 10);
+        offset += length + 10;
     }
 
     return buffer;
