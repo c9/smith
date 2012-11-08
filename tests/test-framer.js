@@ -63,7 +63,11 @@ function frameMessages(messages) {
 var input = [
   {hello: "world"},
   {Goodbye: "Sanity"},
-  [1,2,3,4,5,6,7,6,5,4,3,2,1]
+  [1,2,3,4,5,6,7,6,5,4,3,2,1],
+
+  // Big string that will use multiple bytes for length
+  // (Regression test for hashing)
+  new Array(300).join('A')
 ];
 var message = frameMessages(input.map(function (item) {
   return new Buffer(JSON.stringify(item)); }));
