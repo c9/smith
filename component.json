@@ -1,7 +1,7 @@
 {
   "name": "smith",
   "description": "Smith is an RPC agent system for Node.JS used in architect and vfs.",
-  "version": "0.1.13",
+  "version": "0.1.16",
   "main": "smith.js",
   "dependencies": {
     "creationix/msgpack-js-browser": "*",
