@@ -260,7 +260,7 @@ function deFramer(onFrame) {
             }
 
             // Common case
-            if (state < 3 && !emit) {
+            if (state <= 3 && !emit) {
               expected_hash += chunk[i];
               expected_hash += expected_hash << 10;
               expected_hash += expected_hash >> 6;
