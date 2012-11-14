@@ -750,12 +750,12 @@ function EngineIoTransport(socket, debug) {
       return;
     }
     if (Array.isArray(message)) {
-      self.emit("message", message);
-    }
-    else {
       if (debug) {
         console.log("<-", message);
       }
+      self.emit("message", message);
+    }
+    else {
       self.emit("legacy", message);
     }
   });
