@@ -730,8 +730,9 @@ BrowserTransport.prototype.send = function (message) {
 
 exports.EngineIoTransport = EngineIoTransport;
 inherits(EngineIoTransport, Transport);
-function EngineIoTransport(socket) {
+function EngineIoTransport(socket, debug) {
   var self = this;
+  this.debug = debug;
 
   // Route errors from socket to transport.
   socket.on("error", function (err) {
@@ -752,6 +753,9 @@ function EngineIoTransport(socket) {
       self.emit("message", message);
     }
     else {
+      if (debug) {
+        console.log("<-", message);
+      }
       self.emit("legacy", message);
     }
   });
@@ -760,6 +764,10 @@ function EngineIoTransport(socket) {
   socket.on("close", function (reason) {
     self.emit("disconnect", reason);
   });
+
+  this.disconnect = function () {
+    socket.close();
+  };
 
   // Encode and route send calls to socket.
   this.send = function (message) {
@@ -770,6 +778,9 @@ function EngineIoTransport(socket) {
     catch (err) {
       self.emit("error", err);
       return;
+    }
+    if (this.debug && Array.isArray(message)) {
+      console.log("->", message);
     }
     return socket.send(json);
   };
