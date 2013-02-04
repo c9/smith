@@ -27,6 +27,6 @@
         "node": ">=0.6.0"
     },
     "dependencies": {
-        "msgpack-js": "~0.1.0"
+        "msgpack-js": "https://github.com/rocketpack/msgpack-js/archive/0.1.2.tar.gz"
     }
 }
