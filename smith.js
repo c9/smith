@@ -725,7 +725,7 @@ BrowserTransport.prototype.send = function (message) {
     var data;
     try { data = msgpack.encode(message); }
     catch (err) { return this.emit("error", err); }
-    this.websocket.send(data, {binary: true});
+    this.websocket.send(data);
 };
 
 exports.EngineIoTransport = EngineIoTransport;
