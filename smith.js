@@ -353,7 +353,7 @@ Agent.prototype.send = function (message) {
     return this.transport.send(message);
 };
 
-Agent.prototype._onReady = function (names) {
+Agent.prototype._onReady = function (names, env) {
     if (!Array.isArray(names)) return;
     var self = this;
     names.forEach(function (name) {
@@ -376,6 +376,7 @@ Agent.prototype._onReady = function (names) {
             return self.send(args);
         };
     });
+    this.remoteEnv = env;
     this._emitConnect();
 };
 
@@ -435,8 +436,9 @@ Agent.prototype._onMessage = function (message) {
     var fn;
     if (id === "ready") {
         var keys = Object.keys(this.api);
+        var env = typeof process !== "undefined" && process.env;
         fn = function (callback) {
-            callback(keys);
+            callback(keys, env);
         };
     }
     else {
