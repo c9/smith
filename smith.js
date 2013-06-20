@@ -167,7 +167,7 @@ Transport.prototype.send = function (message) {
     hash = hash ^ (hash >> 11);
     hash += hash << 15;
     hash |= 0;
-    header.writeInt32BE(hash, 4);
+    header.writeInt32BE(hash, 4, true);
 
     // 2 Reserved bytes for future usage
     header.writeUInt16BE(0, 8);
