@@ -300,6 +300,13 @@ inherits(Agent, EventEmitter);
 Agent.prototype.connectionTimeout = 10000;
 
 Agent.prototype.connect = function (transport, callback) {
+    var connection;
+    
+    if (transport.transport) {
+        connection = transport;
+        transport  = transport.transport;
+    }
+    
     // If they passed in a raw stream, wrap it.
     if (!(transport instanceof Transport)) transport = new Transport(transport);
 
@@ -307,8 +314,27 @@ Agent.prototype.connect = function (transport, callback) {
     this.callbacks = {};
     this.nextKey = 1;
     transport.on("error", this.disconnect);
-    transport.on("disconnect", this.disconnect);
-    transport.on("message", this._onMessage);
+    
+    if (connection) {
+        var agent = this;
+        
+        connection.on("disconnect", this.disconnect);
+        connection.on("away", function(){
+            
+        });
+        connection.on("back", function back(e){
+            if (e) 
+                connection.transport = e.transport;
+
+            agent.transport = connection.transport;
+            agent.transport.on("message", agent._onMessage); 
+            agent.transport.on("drain", agent._onDrain);
+        });
+    }
+    else {
+        transport.on("disconnect", this.disconnect);
+    }
+    transport.on("message", this._onMessage); 
     transport.on("drain", this._onDrain);
 
     // Handshake with the other end
@@ -365,9 +391,11 @@ Agent.prototype._onReady = function (names, env) {
             if (!self.transport) {
                 var callback = arguments[arguments.length - 1];
                 if (typeof callback === "function") {
-                    var err = new Error("ENOTCONNECTED: Agent is offline, try again later");
-                    err.code = "ENOTCONNECTED";
-                    callback(err);
+                    setTimeout(function(){
+                        var err = new Error("ENOTCONNECTED: Agent is offline, try again later");
+                        err.code = "ENOTCONNECTED";
+                        callback(err);
+                    }, 10);
                 }
                 return;
             }
@@ -388,7 +416,7 @@ Agent.prototype._emitConnect = function () {
 // "disconnect" event with optional error object.
 Agent.prototype.disconnect = function (err) {
     if (!this.transport) {
-        if (err) this.emit("error", err);
+        // Agent is already disconnected
         return;
     }
 
