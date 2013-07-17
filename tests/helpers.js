@@ -1,5 +1,7 @@
 // Mini test framework for async tests.
 var assert = require('assert');
+global.setImmediate = global.setImmediate || process.nextTick;
+
 var expectations = {};
 function expect(message) { expectations[message] = new Error("Missing expectation: " + message); }
 function fulfill(message) { delete expectations[message]; }
@@ -25,13 +27,13 @@ global.makePair = function makePair(a, b, log) {
   right.writable = true;
   right.readable = true;
   left.write = function (chunk) {
-    process.nextTick(function () {
+    setImmediate(function () {
       if (log) console.log(a,"->",b,chunk);
       right.emit("data", chunk);
     });
   };
   right.write = function (chunk) {
-    process.nextTick(function () {
+    setImmediate(function () {
       if (log) console.log(b,"->",a,chunk);
       left.emit("data", chunk);
     });
