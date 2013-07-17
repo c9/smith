@@ -388,8 +388,7 @@ Agent.prototype._emitConnect = function () {
 // "disconnect" event with optional error object.
 Agent.prototype.disconnect = function (err) {
     if (!this.transport) {
-        if (err) this.emit("error", err);
-        return;
+        if (err) return this.emit("error", err);
     }
 
     // Disconnect from transport
@@ -406,7 +405,7 @@ Agent.prototype.disconnect = function (err) {
         cerr.code = "EDISCONNECT";
     }
 
-    this.emit("disconnect", cerr);
+    this.emit("disconnect", err);
 
     // Flush any callbacks
     if (this.callbacks) {
