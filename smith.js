@@ -316,7 +316,7 @@ Agent.prototype.connect = function (transport, callback) {
 
     // Start timeout and route events to callback
     this.on("connect", onConnect);
-    this.on("disconnect", onError);
+    this.on("disconnect", onDisconnect);
     this.on("error", onError);
     var timeout;
     if (this.connectionTimeout) {
@@ -327,6 +327,9 @@ Agent.prototype.connect = function (transport, callback) {
     function onConnect(api) {
         reset();
         if (callback) callback(null, api);
+    }
+    function onDisconnect(err) {
+        onError(err || new Error("EDISCONNECT: Agent disconnected"));
     }
     function onError(err) {
         reset();
@@ -342,7 +345,7 @@ Agent.prototype.connect = function (transport, callback) {
     // Only one event should happen, so stop event listeners on first event.
     function reset() {
         self.removeListener("connect", onConnect);
-        self.removeListener("disconnect", onError);
+        self.removeListener("disconnect", onDisconnect);
         self.removeListener("error", onError);
         clearTimeout(timeout);
     }
