@@ -306,6 +306,7 @@ Agent.prototype.connect = function (transport, callback) {
     this.transport = transport;
     this.callbacks = {};
     this.nextKey = 1;
+    
     transport.on("error", this.disconnect);
     transport.on("disconnect", this.disconnect);
     transport.on("message", this._onMessage);
@@ -390,17 +391,19 @@ Agent.prototype._emitConnect = function () {
 // Disconnect resets the state of the Agent, flushes callbacks and emits a
 // "disconnect" event with optional error object.
 Agent.prototype.disconnect = function (err) {
-    if (!this.transport) {
-        if (err) return this.emit("error", err);
-    }
+    // if (!this.transport) {
+    //     if (err) return this.emit("error", err);
+    // }
 
     // Disconnect from transport
-    this.transport.removeListener("error", this.disconnect);
-    this.transport.removeListener("disconnect", this.disconnect);
-    this.transport.removeListener("message", this._onMessage);
-    this.transport.removeListener("drain", this._onDrain);
-    this.transport.disconnect();
-    this.transport = undefined;
+    if (this.transport) {
+        this.transport.removeListener("error", this.disconnect);
+        this.transport.removeListener("disconnect", this.disconnect);
+        this.transport.removeListener("message", this._onMessage);
+        this.transport.removeListener("drain", this._onDrain);
+        this.transport.disconnect();
+        this.transport = undefined;
+    }
 
     var cerr = err;
     if (!cerr) {
