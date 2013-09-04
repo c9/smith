@@ -341,6 +341,7 @@ Agent.prototype.connect = function (transport, callback) {
         reset();
         var err = new Error("ETIMEDOUT: Timeout while waiting for Agent agent to connect.");
         err.code = "ETIMEDOUT";
+        if (callback) callback(err);
         self.emit("error", err);
     }
     // Only one event should happen, so stop event listeners on first event.
