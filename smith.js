@@ -708,6 +708,7 @@ function BrowserTransport(websocket, debug) {
     };
 
     websocket.onclose = function (evt) {
+        self.disconnect();
     };
 
     websocket.onerror = function (evt) {
